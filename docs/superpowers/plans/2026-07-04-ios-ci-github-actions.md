@@ -102,21 +102,23 @@ EOF
 
 ---
 
-### Task 2: Trigger the workflow and verify both jobs pass
+### Task 2: Trigger the workflow via PR and verify both jobs pass
 
 **Files:** none (verification task).
+
+**Branch strategy (decided 2026-07-04):** Development happens on feature branches, verified via PR into `main`. This task runs on branch `ci/ios-github-actions` and opens a PR to `main`, exercising the `pull_request: [main]` trigger — the exact path future feature work will use. The `push: [main]` trigger stays for post-merge verification.
 
 **Interfaces:**
 - Consumes: the committed `.github/workflows/ci.yml` and job names `analyze-and-test`, `build-ios` from Task 1.
 - Produces: a green workflow run on GitHub — the plan's success criteria (spec §7).
 
-- [ ] **Step 1: Push `main` to trigger the `push` event**
+- [ ] **Step 1: Push the feature branch and open a PR to `main`**
 
 Run:
 ```bash
-cd /c/Users/a6r79/edmm-flutter && git push origin main
+cd /c/Users/a6r79/edmm-flutter && git push -u origin ci/ios-github-actions && gh pr create --base main --head ci/ios-github-actions --title "Add iOS CI (GitHub Actions)" --body "analyze + test on ubuntu, iOS build (--no-codesign) on macOS. Verifies the pull_request:[main] trigger."
 ```
-Expected: push succeeds; the new commit appears on `origin/main`.
+Expected: branch pushed; PR created; `gh` prints the PR URL. The PR open triggers the `pull_request` event.
 
 - [ ] **Step 2: Confirm the run started and inspect its jobs**
 
@@ -124,7 +126,7 @@ Run:
 ```bash
 cd /c/Users/a6r79/edmm-flutter && gh run list --workflow=ci.yml --limit 1
 ```
-Expected: one run for workflow `CI` on branch `main`, status `in_progress` or `queued`.
+Expected: one run for workflow `CI`, event `pull_request`, status `in_progress` or `queued`.
 
 - [ ] **Step 3: Watch the run to completion**
 
