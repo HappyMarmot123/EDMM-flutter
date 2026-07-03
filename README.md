@@ -47,3 +47,22 @@ samples, guidance on mobile development, and a full API reference.
   - R : Hot Restart                                                                                                          
   - iOS: flutter build ios
   - 웹: flutter build web
+
+## CI / 빌드 검증 (GitHub Actions)
+
+빌드 검증 파이프라인은 `.github/workflows/ci.yml`에 정의돼 있으며, 다음 이벤트에서 자동 실행된다.
+
+- `main` 브랜치로 **PR을 열 때** (피처 브랜치 → `main`)
+- `main`으로 **push**될 때
+- Actions 탭에서 **수동 실행**(`workflow_dispatch`)
+
+즉, 어떤 피처 브랜치에서 작업하든 **`main`으로 PR을 올리는 순간** 아래 검증이 자동으로 돈다.
+
+| Job | 러너 | 하는 일 |
+|---|---|---|
+| `analyze-and-test` | ubuntu | `flutter analyze` + `flutter test` |
+| `build-ios` | macOS | `flutter build ios --no-codesign` (서명 없는 iOS 빌드 검증) |
+
+**iOS 빌드를 CI에 둔 이유**: iOS는 Windows 개발 환경에서 빌드할 수 없어, macOS 러너가 유일한 빌드 검증 수단이다.
+
+**Android는 CI에 없다**: 안드로이드는 로컬 Windows에서 `flutter build apk`로 직접 빌드·검증할 수 있으므로 CI 범위에서 제외했다. 자동 회귀 방어가 필요해지면 ubuntu 러너로 `build-android` job을 추가하면 된다.
