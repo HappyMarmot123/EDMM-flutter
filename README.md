@@ -62,7 +62,10 @@ samples, guidance on mobile development, and a full API reference.
 |---|---|---|
 | `analyze-and-test` | ubuntu | `flutter analyze` + `flutter test` |
 | `build-ios` | macOS | `flutter build ios --no-codesign` (서명 없는 iOS 빌드 검증) |
+| `build-android` | ubuntu | `flutter build apk --release` (릴리스 APK 빌드 검증) |
+
+세 job은 서로 의존 없이 병렬로 돈다. iOS만 macOS 러너를 쓰고(분당 과금이 높음), Android는 Linux에서 빌드되므로 저렴한 ubuntu 러너를 쓴다.
 
 **iOS 빌드를 CI에 둔 이유**: iOS는 Windows 개발 환경에서 빌드할 수 없어, macOS 러너가 유일한 빌드 검증 수단이다.
 
-**Android는 CI에 없다**: 안드로이드는 로컬 Windows에서 `flutter build apk`로 직접 빌드·검증할 수 있으므로 CI 범위에서 제외했다. 자동 회귀 방어가 필요해지면 ubuntu 러너로 `build-android` job을 추가하면 된다.
+**Android 빌드도 CI에서 검증한다**: 로컬 Windows에서도 `flutter build apk`로 빌드할 수 있지만, CI에서 릴리스 APK 빌드를 자동 검증해 Android 전용 회귀(Gradle/AGP, R8 등)를 조기에 잡는다.
