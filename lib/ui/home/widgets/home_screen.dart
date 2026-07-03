@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../view_model/home_view_model.dart';
@@ -47,3 +48,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+/// Widget Preview용 로컬라이제이션 설정. AppLocalizations.of(context)가
+/// 프리뷰 환경에서도 동작하도록 델리게이트를 주입한다.
+/// (annotation 인자로 넘기므로 반드시 public top-level 함수여야 한다.)
+PreviewLocalizationsData homePreviewLocalizations() => PreviewLocalizationsData(
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  locale: const Locale('ko'),
+);
+
+/// 홈 화면 프리뷰. 앱 전체를 띄우지 않고 HomeScreen만 격리 렌더링한다.
+@Preview(name: 'Home 화면 (ko)', localizations: homePreviewLocalizations)
+Widget homeScreenPreview() => HomeScreen(viewModel: HomeViewModel());
