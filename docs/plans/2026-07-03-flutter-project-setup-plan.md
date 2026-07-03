@@ -244,8 +244,16 @@ lib/
 | 에뮬레이터 기동 | **PASS** — Pixel_7(emulator-5554)에서 com.edmm.edmm topResumedActivity·화면 렌더링 스크린샷 확인 |
 | 핫리로드 | 보류 — 대화형 세션 필요. Dart MCP 서버 연동(4.6) 시 Agentic Hot Reload로 검증 예정 |
 
-### 9.3 잔여 항목 (다음 사이클로 이월)
+### 9.3 Dart MCP 서버 연동 (2026-07-04 완료)
 
-1. Dart MCP 서버를 Claude/Codex에 등록 (4.6)
-2. iOS CI 도입 (기획설계에서 보류 결정)
-3. 앱 도메인(EDMM 기능) 정의 → 새 파이프라인 사이클로 진행
+- `dart mcp-server` (v0.1.4) 를 양쪽 CLI에 등록:
+  - Claude Code: 프로젝트 스코프 → `.mcp.json` 생성 (저장소 커밋, 재현 가능). **다음 세션 재시작 + 승인 시 활성화**
+  - Codex CLI: 전역 config 등록 (`codex mcp get dart`로 확인). 새 Codex 세션에서 활성
+- 스모크 테스트: JSON-RPC initialize 핸드셰이크 성공 — tools/resources/prompts 기능 노출 확인
+- 제공 도구: hot_reload, widget_inspector, get_runtime_errors, run_tests, launch_app, analyze_files 등
+  → flutter-fix-layout-issues / flutter-add-integration-test 스킬이 이 도구들을 활용
+
+### 9.4 잔여 항목 (다음 사이클로 이월)
+
+1. iOS CI 도입 (기획설계에서 보류 결정)
+2. 앱 도메인(EDMM 기능) 정의 → 새 파이프라인 사이클로 진행
