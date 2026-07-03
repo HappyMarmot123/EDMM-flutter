@@ -1,7 +1,7 @@
 # EDMM Flutter 모바일앱 — 프로젝트 설치 및 세팅 계획
 
-- 작성일: 2026-07-03
-- 상태: **스크리닝 완료 (PASS)** — 다음 단계(기획설계)는 사용자 승인 대기
+- 작성일: 2026-07-03 / 최종 갱신: 2026-07-04
+- 상태: **전 단계 완료** — 세팅 사이클 종료, 잔여 항목은 9.3 참조
 - 범위: Flutter 프로젝트 생성·환경 세팅까지. 앱 도메인/기능 기획은 이 문서의 범위가 아님 (사용자 지시로 보류)
 
 ---
@@ -10,7 +10,7 @@
 
 ```
 아이디어 제안 → 스크리닝 → 기획설계 → 코드베이스 기반 문서구체화 → 문서검토 → 작업 Task 분리 → 구현진행
-     [완료]      [완료]      [대기]              [대기]              [대기]        [대기]        [대기]
+     [완료]      [완료]      [완료]              [완료]              [완료]        [완료]       [완료]
 ```
 
 각 단계는 아래 가드레일을 통과해야 다음 단계로 진행한다. 불명확하면 즉시 질문하고 멈춘다.
@@ -180,8 +180,72 @@ lib/
 
 ---
 
-## 5. 다음 단계
+## 5. [3단계] 기획설계 확정 (2026-07-04)
 
-- **기획설계**: 위 4장 실행 계획 확정(번들 ID, CI 선택 입력) 후 실행 → 실행 결과를 근거로 가드레일 재점검
-- 이후: 코드베이스 기반 문서구체화(생성된 실제 구조 반영) → 문서검토 → Task 분리 → 구현진행
-- 미해결 입력 2건: ① `--org` 번들 ID ② iOS CI 서비스 선택
+사용자 입력으로 미해결 2건 해소:
+
+1. 번들 ID: **com.edmm** → 앱 패키지 `com.edmm.edmm`
+2. iOS CI: **보류** — 코드는 iOS 포함으로 작성, 빌드 검증 CI는 기능 개발 진행 후 도입
+
+## 6. [4단계] 코드베이스 기반 문서구체화 — 실측 기록 (2026-07-04)
+
+| 항목 | 계획 | 실측 결과 |
+|---|---|---|
+| Flutter 업그레이드 | 3.44.4 | **완료** — 3.44.4 / Dart 3.12.2 / DevTools 2.57.0 |
+| Android SDK | 35.0.1 유지 가정 | **계획과 차이**: Flutter 3.44는 SDK 36 요구 → `sdkmanager`로 platforms;android-36 + build-tools;36.0.0 설치, doctor PASS |
+| 프로젝트 생성 | flutter create | **완료** — 75개 파일 생성, `com.edmm.edmm`, android/ios 플랫폼 |
+| git | init + 최초 커밋 | **완료** — `main` 브랜치, 최초 커밋 05a1fcc (스킬·문서 포함 79 파일) |
+| 에뮬레이터 | 미확인 | Pixel_7, flutter_emulator 2개 확인됨 |
+
+구현 골격(4.3)은 홈 피처 1개를 기준으로 최소 구현한다. `data/`, `domain/`은 첫 실제 피처에서
+파일이 생기는 시점에 채워지며, 이 단계에서는 REST 호출 지점을 예약하는 구조만 잡는다 (YAGNI).
+
+## 7. [5단계] 문서검토 — 가드레일 점검 (2026-07-04)
+
+| 가드레일 | 결과 | 비고 |
+|---|---|---|
+| 범위 | PASS | 세팅·골격까지만. 도메인 기능 미포함 유지 |
+| 근거 | PASS | 모든 실측값은 명령 출력 기준 (doctor, create, git log) |
+| 모순 | PASS | 계획 대비 차이 1건(SDK 36 요구) 발견·해소·기록. 잔여 모순 없음 |
+| 가독성 | PASS | 계획(4장) vs 실측(6장) 분리로 추적 가능 |
+| 종합 | **PASS** | Task 분리 → 구현진행 |
+
+## 8. [6단계] 작업 Task 분리
+
+1. ~~Flutter 3.44.4 업그레이드 + doctor 검증~~ (완료)
+2. ~~프로젝트 생성(com.edmm) + git 초기화~~ (완료)
+3. 패키지 설치: provider, go_router, http, freezed, json_serializable, l10n, lints
+4. MVVM 골격 + 홈 화면 + l10n(ko/en) + 위젯 테스트
+5. 검증: analyze 0건 / test 통과 / apk 빌드 / 에뮬레이터 기동 → 최종 커밋
+
+## 9. [7단계] 구현진행 기록 (2026-07-04 완료)
+
+### 9.1 구현 내역
+
+- 패키지: provider 6.1.5, go_router 17.3.0, http 1.6.0, intl 0.20.2(flutter_localizations 고정),
+  freezed_annotation 3.1.0, json_annotation 4.12.0 / dev: build_runner, freezed 4.0.0-dev.3, json_serializable
+  - 참고: freezed는 analyzer 13 호환을 위해 4.0 dev 채널로 해석됨. 모델 코드젠 도입 시 안정 버전 재확인 필요
+- 구현 구조 (계획 4.3 대비 홈 피처 1개 최소 구현):
+  - `lib/main.dart` — EdmmApp(MaterialApp.router), 전역 DI 조립 지점 예약
+  - `lib/routing/` — appRouter(go_router), Routes 상수
+  - `lib/ui/core/themes/theme.dart` — light/dark ColorScheme.fromSeed
+  - `lib/ui/home/` — HomeViewModel(ChangeNotifier) + HomeScreen (View↔VM 1:1, 라우트에서 VM 주입)
+  - `lib/l10n/` — app_en.arb, app_ko.arb + gen-l10n (l10n.yaml)
+  - `data/`, `domain/`, `config/`는 첫 데이터 피처에서 생성 (YAGNI, 6장 방침)
+- 테스트: `test/widget_test.dart` — 홈 렌더링 + 카운터 증가 위젯 테스트
+
+### 9.2 검증 결과 (4.7 완료 기준 대비)
+
+| 기준 | 결과 |
+|---|---|
+| flutter analyze | **PASS** — No issues found |
+| flutter test | **PASS** — All tests passed |
+| APK 빌드 | **PASS** — app-debug.apk 261.2s (NDK 28.2 자동 설치 포함) |
+| 에뮬레이터 기동 | **PASS** — Pixel_7(emulator-5554)에서 com.edmm.edmm topResumedActivity·화면 렌더링 스크린샷 확인 |
+| 핫리로드 | 보류 — 대화형 세션 필요. Dart MCP 서버 연동(4.6) 시 Agentic Hot Reload로 검증 예정 |
+
+### 9.3 잔여 항목 (다음 사이클로 이월)
+
+1. Dart MCP 서버를 Claude/Codex에 등록 (4.6)
+2. iOS CI 도입 (기획설계에서 보류 결정)
+3. 앱 도메인(EDMM 기능) 정의 → 새 파이프라인 사이클로 진행
