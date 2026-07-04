@@ -14,7 +14,10 @@ class JustAudioController extends BaseAudioHandler
     _subs.add(_player.playbackEventStream.listen(_broadcastState));
     _subs.add(_player.positionStream.listen(_positionController.add));
     _subs.add(_player.durationStream.listen((_) => _emitSnapshot()));
-    _subs.add(_player.currentIndexStream.listen((_) => _emitSnapshot()));
+    _subs.add(_player.currentIndexStream.listen((index) {
+      _updateMediaItem(index);
+      _emitSnapshot();
+    }));
     _subs.add(_player.playerStateStream.listen((_) => _emitSnapshot()));
   }
 
@@ -41,6 +44,7 @@ class JustAudioController extends BaseAudioHandler
       ],
       initialIndex: initialIndex,
     );
+    _updateMediaItem(initialIndex);
     _emitSnapshot();
   }
 
@@ -72,6 +76,13 @@ class JustAudioController extends BaseAudioHandler
     await _player.dispose();
     await _snapshotController.close();
     await _positionController.close();
+  }
+
+  void _updateMediaItem(int? index) {
+    final q = queue.value;
+    if (index != null && index >= 0 && index < q.length) {
+      mediaItem.add(q[index]);
+    }
   }
 
   void _emitSnapshot() {
