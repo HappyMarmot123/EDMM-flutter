@@ -11,16 +11,17 @@ class JustAudioController extends BaseAudioHandler
     with QueueHandler, SeekHandler
     implements AudioController {
   JustAudioController() {
-    _player.playbackEventStream.listen(_broadcastState);
-    _player.positionStream.listen(_positionController.add);
-    _player.durationStream.listen((_) => _emitSnapshot());
-    _player.currentIndexStream.listen((_) => _emitSnapshot());
-    _player.playerStateStream.listen((_) => _emitSnapshot());
+    _subs.add(_player.playbackEventStream.listen(_broadcastState));
+    _subs.add(_player.positionStream.listen(_positionController.add));
+    _subs.add(_player.durationStream.listen((_) => _emitSnapshot()));
+    _subs.add(_player.currentIndexStream.listen((_) => _emitSnapshot()));
+    _subs.add(_player.playerStateStream.listen((_) => _emitSnapshot()));
   }
 
   final AudioPlayer _player = AudioPlayer();
   final _snapshotController = StreamController<PlaybackSnapshot>.broadcast();
   final _positionController = StreamController<Duration>.broadcast();
+  final List<StreamSubscription<dynamic>> _subs = [];
   List<domain.Track> _tracks = const [];
 
   @override
@@ -54,8 +55,20 @@ class JustAudioController extends BaseAudioHandler
   @override
   Future<void> previous() => _player.seekToPrevious();
 
+  // OS media-control overrides (lock screen, Bluetooth, notification)
+  @override
+  Future<void> skipToNext() => _player.seekToNext();
+  @override
+  Future<void> skipToPrevious() => _player.seekToPrevious();
+  @override
+  Future<void> skipToQueueItem(int index) =>
+      _player.seek(Duration.zero, index: index);
+
   @override
   Future<void> dispose() async {
+    for (final s in _subs) {
+      await s.cancel();
+    }
     await _player.dispose();
     await _snapshotController.close();
     await _positionController.close();

@@ -25,4 +25,10 @@ void main() {
     expect(m.artUri.toString(), 'https://art/x.jpg');
     expect(m.duration, const Duration(milliseconds: 1000));
   });
+
+  test('toMediaItem has null artUri when artwork empty', () {
+    final t = Track(id: 'x', source: 'cloudinary', title: 'T', artistId: 'a',
+        artistName: 'A', durationMs: 1000, streamUrl: 'u', metadata: const {});
+    expect(toMediaItem(t).artUri, isNull);
+  });
 }
