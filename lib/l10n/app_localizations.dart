@@ -115,6 +115,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Increment'**
   String get increment;
+
+  /// No description provided for @trackListTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracks'**
+  String get trackListTitle;
+
+  /// No description provided for @tracksLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load tracks'**
+  String get tracksLoadError;
+
+  /// No description provided for @tracksEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No tracks'**
+  String get tracksEmpty;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
 }
 
 class _AppLocalizationsDelegate

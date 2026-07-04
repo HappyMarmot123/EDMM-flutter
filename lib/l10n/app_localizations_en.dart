@@ -16,4 +16,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get increment => 'Increment';
+
+  @override
+  String get trackListTitle => 'Tracks';
+
+  @override
+  String get tracksLoadError => 'Couldn\'t load tracks';
+
+  @override
+  String get tracksEmpty => 'No tracks';
+
+  @override
+  String get retry => 'Retry';
 }

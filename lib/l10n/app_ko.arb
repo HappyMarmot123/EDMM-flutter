@@ -2,5 +2,9 @@
   "@@locale": "ko",
   "appTitle": "EDMM",
   "homeSetupDone": "Flutter 프로젝트 세팅 완료",
-  "increment": "증가"
+  "increment": "증가",
+  "trackListTitle": "트랙",
+  "tracksLoadError": "트랙을 불러오지 못했습니다",
+  "tracksEmpty": "트랙이 없습니다",
+  "retry": "다시 시도"
 }

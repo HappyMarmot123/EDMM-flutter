@@ -2,5 +2,9 @@
   "@@locale": "en",
   "appTitle": "EDMM",
   "homeSetupDone": "Flutter project setup complete",
-  "increment": "Increment"
+  "increment": "Increment",
+  "trackListTitle": "Tracks",
+  "tracksLoadError": "Couldn't load tracks",
+  "tracksEmpty": "No tracks",
+  "retry": "Retry"
 }

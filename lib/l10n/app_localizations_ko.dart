@@ -16,4 +16,16 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get increment => '증가';
+
+  @override
+  String get trackListTitle => '트랙';
+
+  @override
+  String get tracksLoadError => '트랙을 불러오지 못했습니다';
+
+  @override
+  String get tracksEmpty => '트랙이 없습니다';
+
+  @override
+  String get retry => '다시 시도';
 }
