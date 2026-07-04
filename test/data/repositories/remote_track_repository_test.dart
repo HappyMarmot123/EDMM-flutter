@@ -25,7 +25,7 @@ class _FakeApi implements TrackApiService {
 void main() {
   test('merges artwork and caches (no refetch without forceRefresh)', () async {
     final api = _FakeApi(audio: () => [_audio('Bloom')], images: () => [_image('Bloom', 'art')]);
-    final repo = RemoteTrackRepository(api);
+    final TrackRepository repo = RemoteTrackRepository(api);
 
     final r1 = await repo.getTracks();
     expect(r1, isA<Ok<List<Track>>>());
@@ -40,14 +40,14 @@ void main() {
 
   test('image failure is best-effort; audio still returned', () async {
     final api = _FakeApi(audio: () => [_audio('Solo')], images: () => throw TrackApiException(statusCode: 500));
-    final repo = RemoteTrackRepository(api);
+    final TrackRepository repo = RemoteTrackRepository(api);
     final r = await repo.getTracks();
     expect((r as Ok<List<Track>>).value.single.title, 'Solo');
   });
 
   test('audio failure yields Err(ServerFailure)', () async {
     final api = _FakeApi(audio: () => throw TrackApiException(statusCode: 502), images: () => []);
-    final repo = RemoteTrackRepository(api);
+    final TrackRepository repo = RemoteTrackRepository(api);
     final r = await repo.getTracks();
     expect(r, isA<Err<List<Track>>>());
     expect((r as Err<List<Track>>).error, isA<ServerFailure>());
