@@ -16,6 +16,7 @@ class TrackListViewModel extends ChangeNotifier {
   Future<void> load({bool forceRefresh = false}) async {
     status = TrackListStatus.loading;
     error = null;
+    tracks = const [];
     notifyListeners();
     final result = await _repo.getTracks(forceRefresh: forceRefresh);
     switch (result) {

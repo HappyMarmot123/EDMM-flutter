@@ -7,8 +7,12 @@ import 'package:edmm/ui/track_list/view_model/track_list_view_model.dart';
 class _Repo implements TrackRepository {
   _Repo(this.result);
   Result<List<Track>> result;
+  bool lastForceRefresh = false;
   @override
-  Future<Result<List<Track>>> getTracks({bool forceRefresh = false}) async => result;
+  Future<Result<List<Track>>> getTracks({bool forceRefresh = false}) async {
+    lastForceRefresh = forceRefresh;
+    return result;
+  }
 }
 
 Track _t(String id) => Track(id: id, source: 'cloudinary', title: id, artistId: 'a',
@@ -33,5 +37,20 @@ void main() {
     await vm.load();
     expect(vm.status, TrackListStatus.error);
     expect(vm.error, isA<ServerFailure>());
+  });
+
+  test('load notifies listeners (loading + final)', () async {
+    final vm = TrackListViewModel(_Repo(Ok([_t('1')])));
+    var calls = 0;
+    vm.addListener(() => calls++);
+    await vm.load();
+    expect(calls, greaterThanOrEqualTo(2));
+  });
+
+  test('load forwards forceRefresh to repository', () async {
+    final repo = _Repo(Ok(<Track>[]));
+    final vm = TrackListViewModel(repo);
+    await vm.load(forceRefresh: true);
+    expect(repo.lastForceRefresh, isTrue);
   });
 }
