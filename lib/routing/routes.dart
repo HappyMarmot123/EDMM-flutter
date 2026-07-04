@@ -1,3 +1,4 @@
 abstract final class Routes {
-  static const String home = '/';
+  static const String trackList = '/';
+  static const String player = '/player';
 }
