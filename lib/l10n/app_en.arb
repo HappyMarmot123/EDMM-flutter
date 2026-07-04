@@ -6,5 +6,7 @@
   "trackListTitle": "Tracks",
   "tracksLoadError": "Couldn't load tracks",
   "tracksEmpty": "No tracks",
-  "retry": "Retry"
+  "retry": "Retry",
+  "nowPlaying": "Now Playing",
+  "unknownArtist": "Unknown artist"
 }

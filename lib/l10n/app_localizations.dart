@@ -139,6 +139,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry'**
   String get retry;
+
+  /// No description provided for @nowPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Now Playing'**
+  String get nowPlaying;
+
+  /// No description provided for @unknownArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown artist'**
+  String get unknownArtist;
 }
 
 class _AppLocalizationsDelegate

@@ -28,4 +28,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get retry => '다시 시도';
+
+  @override
+  String get nowPlaying => '재생 중';
+
+  @override
+  String get unknownArtist => '알 수 없는 아티스트';
 }
