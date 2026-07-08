@@ -48,9 +48,7 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
               children: [
                 TextField(
                   controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: l10n.searchHint,
-                  ),
+                  decoration: InputDecoration(hintText: l10n.searchHint),
                   onChanged: widget.viewModel.setQuery,
                 ),
                 const SizedBox(height: 12),
@@ -62,25 +60,61 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () => widget.viewModel.setView(CatalogView.pop),
+                            onPressed: () =>
+                                widget.viewModel.setView(CatalogView.pop),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: widget.viewModel.view == CatalogView.pop
-                                  ? Theme.of(context).colorScheme.primaryContainer
+                              backgroundColor:
+                                  widget.viewModel.view == CatalogView.pop
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer
                                   : null,
                             ),
-                            child: Text('${l10n.tabPop} (${counts[CatalogView.pop] ?? 0})'),
+                            child: FittedBox(
+                              child: Text(
+                                '${l10n.tabPop} (${counts[CatalogView.pop] ?? 0})',
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () => widget.viewModel.setView(CatalogView.edm),
+                            onPressed: () =>
+                                widget.viewModel.setView(CatalogView.edm),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: widget.viewModel.view == CatalogView.edm
-                                  ? Theme.of(context).colorScheme.primaryContainer
+                              backgroundColor:
+                                  widget.viewModel.view == CatalogView.edm
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer
                                   : null,
                             ),
-                            child: Text('${l10n.tabEdm} (${counts[CatalogView.edm] ?? 0})'),
+                            child: FittedBox(
+                              child: Text(
+                                '${l10n.tabEdm} (${counts[CatalogView.edm] ?? 0})',
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () =>
+                                widget.viewModel.setView(CatalogView.recent),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  widget.viewModel.view == CatalogView.recent
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer
+                                  : null,
+                            ),
+                            child: FittedBox(
+                              child: Text(
+                                '${l10n.tabRecent} (${counts[CatalogView.recent] ?? 0})',
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -116,10 +150,7 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(l10n.tracksLoadError),
-            TextButton(
-              onPressed: vm.retry,
-              child: Text(l10n.retry),
-            ),
+            TextButton(onPressed: vm.retry, child: Text(l10n.retry)),
           ],
         ),
       );
@@ -135,7 +166,10 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(l10n.searchNoResults),
-            TextButton(onPressed: vm.clearSearch, child: Text(l10n.clearSearch)),
+            TextButton(
+              onPressed: vm.clearSearch,
+              child: Text(l10n.clearSearch),
+            ),
           ],
         ),
       );
@@ -147,9 +181,7 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
         if (vm.status == CatalogStatus.error)
           MaterialBanner(
             content: Text(l10n.catalogStaleWarning),
-            actions: [
-              TextButton(onPressed: vm.retry, child: Text(l10n.retry)),
-            ],
+            actions: [TextButton(onPressed: vm.retry, child: Text(l10n.retry))],
           ),
         Expanded(child: _buildList(vm)),
       ],
@@ -167,22 +199,24 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
         final tileColor = isCurrent
             ? Theme.of(context).colorScheme.primaryContainer
             : isSeedSelected
-                ? Theme.of(context).colorScheme.secondaryContainer
-                : null;
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : null;
 
         return ListTile(
           tileColor: tileColor,
           leading: track.artworkUrl.isEmpty
-                ? const Icon(Icons.music_note)
-                : Image.network(
-                    track.artworkUrl,
-                    width: 48,
-                    height: 48,
+              ? const Icon(Icons.music_note)
+              : Image.network(
+                  track.artworkUrl,
+                  width: 48,
+                  height: 48,
                   fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Icon(Icons.music_note),
-                  ),
+                  errorBuilder: (_, _, _) => const Icon(Icons.music_note),
+                ),
           title: Text(track.title),
-          subtitle: Text(track.artistName.isEmpty ? l10n.unknownArtist : track.artistName),
+          subtitle: Text(
+            track.artistName.isEmpty ? l10n.unknownArtist : track.artistName,
+          ),
           trailing: isCurrent && vm.isCurrentPlaying
               ? const Icon(Icons.volume_up)
               : null,

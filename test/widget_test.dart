@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:edmm/data/repositories/in_memory_local_library_repository.dart';
 import 'package:edmm/l10n/app_localizations.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/models/cloudinary_category.dart';
@@ -16,8 +17,7 @@ class _Repo implements TrackRepository {
     required CloudinaryCategory category,
     String query = '',
     bool forceRefresh = false,
-  }) async =>
-      const Ok<List<Track>>([]);
+  }) async => const Ok<List<Track>>([]);
 }
 
 class _Audio implements AudioController {
@@ -52,13 +52,22 @@ class _Audio implements AudioController {
 }
 
 void main() {
-  testWidgets('home shell renders the empty catalog state via a real load', (tester) async {
-    final vm = CatalogSearchViewModel(_Repo(), _Audio(), searchDebounce: Duration.zero);
-    await tester.pumpWidget(MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: CatalogSearchScreen(viewModel: vm, onPlay: (_, _) {}),
-    ));
+  testWidgets('home shell renders the empty catalog state via a real load', (
+    tester,
+  ) async {
+    final vm = CatalogSearchViewModel(
+      _Repo(),
+      _Audio(),
+      InMemoryLocalLibraryRepository(),
+      searchDebounce: Duration.zero,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: CatalogSearchScreen(viewModel: vm, onPlay: (_, _) {}),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('No tracks'), findsOneWidget);
   });

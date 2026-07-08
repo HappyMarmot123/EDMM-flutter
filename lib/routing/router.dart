@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../domain/audio/audio_controller.dart';
+import '../domain/logic/playback_persistence.dart';
+import '../domain/repositories/local_library_repository.dart';
 import '../domain/repositories/track_repository.dart';
 import '../domain/telemetry/catalog_search_telemetry.dart';
 import '../domain/telemetry/playback_telemetry.dart';
@@ -28,8 +32,10 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final repo = context.read<TrackRepository>();
         final audio = context.read<AudioController>();
+        final localLibrary = context.read<LocalLibraryRepository>();
         final telemetry = context.read<CatalogSearchTelemetrySink>();
         final view = switch (state.uri.queryParameters['view']) {
+          'recent' => CatalogView.recent,
           'edm' => CatalogView.edm,
           'pop' => CatalogView.pop,
           _ => null,
@@ -38,11 +44,13 @@ final GoRouter appRouter = GoRouter(
           viewModel: CatalogSearchViewModel(
             repo,
             audio,
+            localLibrary,
             initialView: view,
             initialTrackId: state.uri.queryParameters['track'],
             telemetry: telemetry,
           ),
           onPlay: (queue, index) async {
+            unawaited(persistPlaybackSelection(localLibrary, queue, index));
             await audio.loadQueue(queue, initialIndex: index);
             await audio.play();
             if (context.mounted) context.go(Routes.player);
@@ -55,6 +63,7 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => PlayerScreen(
         viewModel: PlayerViewModel(
           context.read<AudioController>(),
+          localLibrary: context.read<LocalLibraryRepository>(),
           telemetry: context.read<PlaybackTelemetrySink>(),
         ),
       ),

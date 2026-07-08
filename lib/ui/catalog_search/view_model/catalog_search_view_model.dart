@@ -6,18 +6,20 @@ import '../../../domain/audio/audio_controller.dart';
 import '../../../domain/models/cloudinary_category.dart';
 import '../../../domain/models/track.dart';
 import '../../../domain/repositories/track_repository.dart';
+import '../../../domain/repositories/local_library_repository.dart';
 import '../../../domain/result.dart';
 import '../../../domain/playback/playback_snapshot.dart';
 import '../../../domain/telemetry/catalog_search_telemetry.dart';
 
-enum CatalogView { pop, edm }
+enum CatalogView { pop, edm, recent }
 
 enum CatalogStatus { loading, data, empty, searchEmpty, error }
 
 class CatalogSearchViewModel extends ChangeNotifier {
   CatalogSearchViewModel(
     this._repo,
-    this._audio, {
+    this._audio,
+    this._localLibrary, {
     CatalogView? initialView,
     String? initialTrackId,
     CatalogSearchTelemetrySink? telemetry,
@@ -30,6 +32,7 @@ class CatalogSearchViewModel extends ChangeNotifier {
 
   final TrackRepository _repo;
   final AudioController _audio;
+  final LocalLibraryRepository _localLibrary;
   final String? _initialTrackId;
   final bool _hasExplicitInitialView;
   final Duration searchDebounce;
@@ -70,6 +73,7 @@ class CatalogSearchViewModel extends ChangeNotifier {
     await Future.wait([
       _prefetchBaseCatalog(CatalogView.pop),
       _prefetchBaseCatalog(CatalogView.edm),
+      _prefetchRecentCount(),
     ]);
 
     if (_initialTrackId != null && !_hasExplicitInitialView) {
@@ -84,16 +88,23 @@ class CatalogSearchViewModel extends ChangeNotifier {
   }
 
   Future<void> _prefetchBaseCatalog(CatalogView view) async {
-    final result = await _repo.getCatalog(
-      category: view._toCloudinaryCategory,
-      query: '',
-    );
+    final category = view._remoteCategory;
+    if (category == null) return;
+
+    final result = await _repo.getCatalog(category: category, query: '');
     if (result case Ok(:final value)) {
       final ids = value.map((track) => track.id).toSet();
       _baseIdsByView = {..._baseIdsByView, view: ids};
       counts = {...counts, view: ids.length};
       notifyListeners();
     }
+  }
+
+  Future<void> _prefetchRecentCount() async {
+    final recentIds = await _localLibrary.getRecentTrackIds();
+    final cachedTracks = await _localLibrary.getCachedTracks(recentIds);
+    counts = {...counts, CatalogView.recent: cachedTracks.length};
+    notifyListeners();
   }
 
   Future<void> setView(CatalogView next) async {
@@ -165,8 +176,15 @@ class CatalogSearchViewModel extends ChangeNotifier {
     error = null;
     notifyListeners();
 
+    final category = _view._remoteCategory;
+    if (category == null) {
+      await _loadRecent();
+      notifyListeners();
+      return;
+    }
+
     final result = await _repo.getCatalog(
-      category: _view._toCloudinaryCategory,
+      category: category,
       query: _appliedQuery,
       forceRefresh: forceRefresh,
     );
@@ -241,6 +259,46 @@ class CatalogSearchViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _loadRecent() async {
+    final recentIds = await _localLibrary.getRecentTrackIds();
+    final cachedTracks = await _localLibrary.getCachedTracks(recentIds);
+    final filteredTracks = _filterLocalTracks(cachedTracks, _appliedQuery);
+
+    _lastSuccessful = {..._lastSuccessful, CatalogView.recent: cachedTracks};
+    counts = {...counts, CatalogView.recent: cachedTracks.length};
+    tracks = filteredTracks;
+    error = null;
+    status = filteredTracks.isEmpty
+        ? (_appliedQuery.isEmpty
+              ? CatalogStatus.empty
+              : CatalogStatus.searchEmpty)
+        : CatalogStatus.data;
+    _telemetry.emit(
+      CatalogSearchTelemetryEvent(
+        name: CatalogSearchTelemetryEventNames.succeeded,
+        payload: CatalogSearchTelemetryPayload.successPayload(
+          view: _view.name,
+          query: _appliedQuery,
+          resultCount: filteredTracks.length,
+        ),
+      ),
+    );
+  }
+
+  List<Track> _filterLocalTracks(List<Track> source, String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) return source;
+    return source
+        .where((track) => _matchesLocalQuery(track, normalizedQuery))
+        .toList(growable: false);
+  }
+
+  bool _matchesLocalQuery(Track track, String query) {
+    return track.id.toLowerCase().contains(query) ||
+        track.title.toLowerCase().contains(query) ||
+        track.artistName.toLowerCase().contains(query);
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -250,8 +308,9 @@ class CatalogSearchViewModel extends ChangeNotifier {
 }
 
 extension on CatalogView {
-  CloudinaryCategory get _toCloudinaryCategory => switch (this) {
+  CloudinaryCategory? get _remoteCategory => switch (this) {
     CatalogView.pop => CloudinaryCategory.pop,
     CatalogView.edm => CloudinaryCategory.edm,
+    CatalogView.recent => null,
   };
 }

@@ -1,15 +1,23 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../domain/audio/audio_controller.dart';
+import '../../../data/repositories/noop_local_library_repository.dart';
+import '../../../domain/logic/playback_persistence.dart';
 import '../../../domain/playback/playback_snapshot.dart';
+import '../../../domain/repositories/local_library_repository.dart';
 import '../../../domain/telemetry/playback_telemetry.dart';
 
 class PlayerViewModel extends ChangeNotifier {
-  PlayerViewModel(this._audio, {PlaybackTelemetrySink? telemetry})
-    : _telemetry = telemetry ?? const NoopPlaybackTelemetrySink() {
+  PlayerViewModel(
+    this._audio, {
+    PlaybackTelemetrySink? telemetry,
+    LocalLibraryRepository? localLibrary,
+  }) : _telemetry = telemetry ?? const NoopPlaybackTelemetrySink(),
+       _localLibrary = localLibrary ?? const NoopLocalLibraryRepository() {
     _sub = _audio.snapshot.listen((s) {
       snapshot = s;
       _emitPlaybackErrorTelemetry(s);
+      _persistPlayingTrack(s);
       notifyListeners();
     });
     _volume = _audio.volume;
@@ -20,11 +28,13 @@ class PlayerViewModel extends ChangeNotifier {
 
   final AudioController _audio;
   final PlaybackTelemetrySink _telemetry;
+  final LocalLibraryRepository _localLibrary;
   late final StreamSubscription<PlaybackSnapshot> _sub;
   bool _mute = false;
   double _volume = 1.0;
   double _prevVolume = 1.0;
   bool _shuffleEnabled = false;
+  String? _lastPersistedTrackId;
 
   PlaybackSnapshot snapshot = const PlaybackSnapshot();
   Stream<Duration> get position => _audio.position;
@@ -76,6 +86,14 @@ class PlayerViewModel extends ChangeNotifier {
   void _emitPlaybackErrorTelemetry(PlaybackSnapshot snapshot) {
     if (snapshot.error == null) return;
     _telemetry.emit(PlaybackTelemetryEvent.errorReported(snapshot));
+  }
+
+  void _persistPlayingTrack(PlaybackSnapshot snapshot) {
+    final track = snapshot.currentTrack;
+    if (track == null || !snapshot.isPlaying) return;
+    if (track.id == _lastPersistedTrackId) return;
+    _lastPersistedTrackId = track.id;
+    unawaited(persistPlaybackTrack(_localLibrary, track));
   }
 
   @override

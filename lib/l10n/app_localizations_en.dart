@@ -45,6 +45,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tabEdm => 'EDM';
 
   @override
+  String get tabRecent => 'Recent';
+
+  @override
   String get searchNoResults => 'No matching tracks';
 
   @override

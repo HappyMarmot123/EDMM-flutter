@@ -45,6 +45,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get tabEdm => 'EDM';
 
   @override
+  String get tabRecent => '최근';
+
+  @override
   String get searchNoResults => '일치하는 트랙이 없습니다';
 
   @override

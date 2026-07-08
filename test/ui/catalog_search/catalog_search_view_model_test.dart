@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:edmm/data/repositories/in_memory_local_library_repository.dart';
 import 'package:edmm/domain/audio/audio_controller.dart';
 import 'package:edmm/domain/models/cloudinary_category.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
+import 'package:edmm/domain/repositories/local_library_repository.dart';
 import 'package:edmm/domain/repositories/track_repository.dart';
 import 'package:edmm/domain/result.dart';
 import 'package:edmm/domain/telemetry/catalog_search_telemetry.dart';
@@ -84,9 +86,11 @@ CatalogSearchViewModel _vm(
   CatalogView? initialView,
   String? initialTrackId,
   CatalogSearchTelemetrySink? telemetry,
+  LocalLibraryRepository? localLibrary,
 }) => CatalogSearchViewModel(
   repo,
   audio,
+  localLibrary ?? InMemoryLocalLibraryRepository(),
   initialView: initialView,
   initialTrackId: initialTrackId,
   telemetry: telemetry,
@@ -133,11 +137,56 @@ void main() {
     expect(vm.tracks.single.id, '9');
   });
 
+  test('recent view hydrates cached tracks in recent order', () async {
+    final localLibrary = InMemoryLocalLibraryRepository();
+    await localLibrary.cacheTrack(_t('1'));
+    await localLibrary.cacheTrack(_t('2'));
+    await localLibrary.recordRecentPlay('1');
+    await localLibrary.recordRecentPlay('2');
+    final repo = _Repo((c, q) => Ok([_t('${c.wire}-remote')]));
+    final vm = _vm(
+      repo,
+      _Audio(),
+      initialView: CatalogView.recent,
+      localLibrary: localLibrary,
+    );
+
+    await vm.init();
+
+    expect(vm.view, CatalogView.recent);
+    expect(vm.status, CatalogStatus.data);
+    expect(vm.tracks.map((track) => track.id), ['2', '1']);
+    expect(vm.counts[CatalogView.recent], 2);
+    expect(repo.calls, ['pop|', 'edm|']);
+  });
+
+  test('recent view filters cached tracks locally', () async {
+    final localLibrary = InMemoryLocalLibraryRepository();
+    await localLibrary.cacheTrack(_t('1'));
+    await localLibrary.cacheTrack(_t('2'));
+    await localLibrary.recordRecentPlay('1');
+    await localLibrary.recordRecentPlay('2');
+    final vm = _vm(
+      _Repo((c, q) => Ok([_t('${c.wire}-remote')])),
+      _Audio(),
+      initialView: CatalogView.recent,
+      localLibrary: localLibrary,
+    );
+    await vm.init();
+
+    vm.setQuery('song 1');
+    await _tick();
+
+    expect(vm.status, CatalogStatus.data);
+    expect(vm.tracks.map((track) => track.id), ['1']);
+  });
+
   test('setQuery debounces to a single search with the final value', () async {
     final repo = _Repo((c, q) => Ok(q == 'house' ? [_t('h')] : [_t('1')]));
     final vm = CatalogSearchViewModel(
       repo,
       _Audio(),
+      InMemoryLocalLibraryRepository(),
       initialView: CatalogView.pop,
       searchDebounce: const Duration(milliseconds: 60),
     );

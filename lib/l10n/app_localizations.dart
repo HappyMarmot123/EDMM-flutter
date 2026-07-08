@@ -170,6 +170,12 @@ abstract class AppLocalizations {
   /// **'EDM'**
   String get tabEdm;
 
+  /// No description provided for @tabRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get tabRecent;
+
   /// No description provided for @searchNoResults.
   ///
   /// In en, this message translates to:

@@ -12,6 +12,7 @@
   "searchHint": "트랙 검색",
   "tabPop": "Pop",
   "tabEdm": "EDM",
+  "tabRecent": "최근",
   "searchNoResults": "일치하는 트랙이 없습니다",
   "clearSearch": "검색 지우기",
   "catalogStaleWarning": "저장된 결과 표시 중 — 새로고침 실패"

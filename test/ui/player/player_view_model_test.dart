@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:edmm/data/repositories/in_memory_local_library_repository.dart';
 import 'package:edmm/domain/audio/audio_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
@@ -223,5 +224,20 @@ void main() {
       telemetry.events.single.payload[PlaybackTelemetryPayload.queueIndex],
       2,
     );
+  });
+
+  test('records playing current track in the local library', () async {
+    final audio = _FakeAudio();
+    final localLibrary = InMemoryLocalLibraryRepository();
+    PlayerViewModel(audio, localLibrary: localLibrary);
+
+    audio._snap.add(
+      PlaybackSnapshot(currentTrack: _track(), status: PlaybackStatus.playing),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await localLibrary.getRecentTrackIds(), ['x']);
+    expect((await localLibrary.getCachedTrack('x'))?.id, 'x');
   });
 }

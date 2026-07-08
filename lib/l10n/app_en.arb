@@ -12,6 +12,7 @@
   "searchHint": "Search tracks",
   "tabPop": "Pop",
   "tabEdm": "EDM",
+  "tabRecent": "Recent",
   "searchNoResults": "No matching tracks",
   "clearSearch": "Clear search",
   "catalogStaleWarning": "Showing saved results — couldn't refresh"
