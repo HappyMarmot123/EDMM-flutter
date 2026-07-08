@@ -151,6 +151,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unknown artist'**
   String get unknownArtist;
+
+  /// No description provided for @searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search tracks'**
+  String get searchHint;
+
+  /// No description provided for @tabPop.
+  ///
+  /// In en, this message translates to:
+  /// **'Pop'**
+  String get tabPop;
+
+  /// No description provided for @tabEdm.
+  ///
+  /// In en, this message translates to:
+  /// **'EDM'**
+  String get tabEdm;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching tracks'**
+  String get searchNoResults;
+
+  /// No description provided for @clearSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get clearSearch;
+
+  /// No description provided for @catalogStaleWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Showing saved results — couldn\'t refresh'**
+  String get catalogStaleWarning;
 }
 
 class _AppLocalizationsDelegate

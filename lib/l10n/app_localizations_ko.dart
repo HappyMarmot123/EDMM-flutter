@@ -34,4 +34,22 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get unknownArtist => '알 수 없는 아티스트';
+
+  @override
+  String get searchHint => '트랙 검색';
+
+  @override
+  String get tabPop => 'Pop';
+
+  @override
+  String get tabEdm => 'EDM';
+
+  @override
+  String get searchNoResults => '일치하는 트랙이 없습니다';
+
+  @override
+  String get clearSearch => '검색 지우기';
+
+  @override
+  String get catalogStaleWarning => '저장된 결과 표시 중 — 새로고침 실패';
 }

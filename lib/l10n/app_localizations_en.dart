@@ -34,4 +34,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unknownArtist => 'Unknown artist';
+
+  @override
+  String get searchHint => 'Search tracks';
+
+  @override
+  String get tabPop => 'Pop';
+
+  @override
+  String get tabEdm => 'EDM';
+
+  @override
+  String get searchNoResults => 'No matching tracks';
+
+  @override
+  String get clearSearch => 'Clear search';
+
+  @override
+  String get catalogStaleWarning => 'Showing saved results — couldn\'t refresh';
 }

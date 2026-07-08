@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../config/app_config.dart';
 import '../../domain/models/track.dart';
+import '../../domain/models/cloudinary_category.dart';
 
 class TrackApiException implements Exception {
   TrackApiException({this.statusCode, this.cause});
@@ -17,13 +18,27 @@ class TrackApiService {
   final http.Client _client;
   final AppConfig _config;
 
-  Future<List<Track>> fetchAudioTracks() =>
-      _get('/api/cloudinary/tracks/video?filterPlayable=true');
+  Future<List<Track>> fetchCatalog({
+    required CloudinaryCategory category,
+    String query = '',
+  }) =>
+      _get('/api/cloudinary/tracks', {
+        'q': query,
+        'resourceType': 'all',
+        'category': category.wire,
+      });
 
-  Future<List<Track>> fetchImageTracks() => _get('/api/cloudinary/tracks/image');
-
-  Future<List<Track>> _get(String path) async {
-    final uri = Uri.parse('${_config.bffBaseUrl}$path');
+  Future<List<Track>> _get(
+    String path,
+    Map<String, String> queryParameters,
+  ) async {
+    final base = Uri.parse(_config.bffBaseUrl);
+    final uri = Uri(
+      scheme: base.scheme.isNotEmpty ? base.scheme : 'https',
+      host: base.host,
+      path: path,
+      queryParameters: queryParameters,
+    );
     final http.Response res;
     try {
       res = await _client.get(uri).timeout(_config.timeout);
