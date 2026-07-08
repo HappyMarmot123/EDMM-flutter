@@ -2,11 +2,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../domain/audio/audio_controller.dart';
 import '../../../domain/playback/playback_snapshot.dart';
+import '../../../domain/telemetry/playback_telemetry.dart';
 
 class PlayerViewModel extends ChangeNotifier {
-  PlayerViewModel(this._audio) {
+  PlayerViewModel(this._audio, {PlaybackTelemetrySink? telemetry})
+    : _telemetry = telemetry ?? const NoopPlaybackTelemetrySink() {
     _sub = _audio.snapshot.listen((s) {
       snapshot = s;
+      _emitPlaybackErrorTelemetry(s);
       notifyListeners();
     });
     _volume = _audio.volume;
@@ -16,6 +19,7 @@ class PlayerViewModel extends ChangeNotifier {
   }
 
   final AudioController _audio;
+  final PlaybackTelemetrySink _telemetry;
   late final StreamSubscription<PlaybackSnapshot> _sub;
   bool _mute = false;
   double _volume = 1.0;
@@ -29,7 +33,8 @@ class PlayerViewModel extends ChangeNotifier {
   double get volume => _volume;
   bool get isShuffleEnabled => _shuffleEnabled;
 
-  Future<void> playPause() => snapshot.isPlaying ? _audio.pause() : _audio.play();
+  Future<void> playPause() =>
+      snapshot.isPlaying ? _audio.pause() : _audio.play();
   Future<void> seek(Duration to) => _audio.seek(to);
   Future<void> next() => _audio.next();
   Future<void> previous() => _audio.previous();
@@ -67,6 +72,11 @@ class PlayerViewModel extends ChangeNotifier {
   }
 
   bool get hasError => snapshot.error != null;
+
+  void _emitPlaybackErrorTelemetry(PlaybackSnapshot snapshot) {
+    if (snapshot.error == null) return;
+    _telemetry.emit(PlaybackTelemetryEvent.errorReported(snapshot));
+  }
 
   @override
   void dispose() {

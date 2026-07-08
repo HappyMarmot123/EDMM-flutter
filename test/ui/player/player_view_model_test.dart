@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:edmm/domain/audio/audio_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
+import 'package:edmm/domain/result.dart';
+import 'package:edmm/domain/telemetry/playback_telemetry.dart';
 import 'package:edmm/ui/player/view_model/player_view_model.dart';
 
 class _FakeAudio implements AudioController {
@@ -77,6 +79,24 @@ class _FakeAudio implements AudioController {
   Future<void> dispose() async {}
 }
 
+Track _track() => Track(
+  id: 'x',
+  source: 'cloudinary',
+  title: 'Bloom',
+  artistId: 'a',
+  artistName: 'Feint',
+  durationMs: 60000,
+  streamUrl: 'https://example.com/bloom.mp3',
+  metadata: const {},
+);
+
+class _PlaybackTelemetryRecorder extends PlaybackTelemetrySink {
+  final events = <PlaybackTelemetryEvent>[];
+
+  @override
+  void emit(PlaybackTelemetryEvent event) => events.add(event);
+}
+
 void main() {
   test('mirrors snapshot stream and notifies', () async {
     final audio = _FakeAudio();
@@ -143,19 +163,65 @@ void main() {
     expect(vm.isMuted, isTrue);
   });
 
-  test('toggleMute delegates to mute API and restores previous volume', () async {
+  test(
+    'toggleMute delegates to mute API and restores previous volume',
+    () async {
+      final audio = _FakeAudio();
+      final vm = PlayerViewModel(audio);
+      await vm.setVolume(0.75);
+
+      await vm.toggleMute();
+      expect(audio.setMuteCalls, [true]);
+      expect(vm.isMuted, isTrue);
+      expect(vm.volume, 0.0);
+
+      await vm.toggleMute();
+      expect(audio.setMuteCalls, [true, false]);
+      expect(vm.isMuted, isFalse);
+      expect(vm.volume, closeTo(0.75, 0.0001));
+    },
+  );
+
+  test('emits playback error telemetry from snapshot errors', () async {
     final audio = _FakeAudio();
-    final vm = PlayerViewModel(audio);
-    await vm.setVolume(0.75);
+    final telemetry = _PlaybackTelemetryRecorder();
+    PlayerViewModel(audio, telemetry: telemetry);
 
-    await vm.toggleMute();
-    expect(audio.setMuteCalls, [true]);
-    expect(vm.isMuted, isTrue);
-    expect(vm.volume, 0.0);
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.error,
+        queueIndex: 2,
+        error: const ServerFailure(503),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
 
-    await vm.toggleMute();
-    expect(audio.setMuteCalls, [true, false]);
-    expect(vm.isMuted, isFalse);
-    expect(vm.volume, closeTo(0.75, 0.0001));
+    expect(telemetry.events, hasLength(1));
+    expect(
+      telemetry.events.single.name,
+      PlaybackTelemetryEventNames.errorReported,
+    );
+    expect(
+      telemetry.events.single.payload[PlaybackTelemetryPayload.failureCategory],
+      'server',
+    );
+    expect(
+      telemetry.events.single.payload[PlaybackTelemetryPayload
+          .failureRetryable],
+      isTrue,
+    );
+    expect(
+      telemetry.events.single.payload[PlaybackTelemetryPayload.status],
+      'error',
+    );
+    expect(
+      telemetry.events.single.payload[PlaybackTelemetryPayload.hasCurrentTrack],
+      isTrue,
+    );
+    expect(
+      telemetry.events.single.payload[PlaybackTelemetryPayload.queueIndex],
+      2,
+    );
   });
 }

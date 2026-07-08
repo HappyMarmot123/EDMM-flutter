@@ -16,9 +16,16 @@ import 'domain/audio/audio_controller.dart';
 import 'domain/repositories/local_library_repository.dart';
 import 'domain/repositories/track_repository.dart';
 import 'domain/telemetry/catalog_search_telemetry.dart';
+import 'domain/telemetry/local_library_telemetry.dart';
+import 'domain/telemetry/playback_telemetry.dart';
 import 'l10n/app_localizations.dart';
 import 'routing/router.dart';
 import 'ui/core/themes/theme.dart';
+
+typedef SharedPreferencesFactory = Future<SharedPreferences> Function();
+typedef FileLocalLibraryRepositoryFactory =
+    Future<LocalLibraryRepository> Function(SharedPreferences prefs);
+typedef LocalLibraryRepositoryFactory = LocalLibraryRepository Function();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,8 +40,9 @@ Future<void> main() async {
   );
   final api = TrackApiService(http.Client(), config);
   final TrackRepository repo = RemoteTrackRepository(api);
+  const localLibraryTelemetry = NoopLocalLibraryTelemetrySink();
   final LocalLibraryRepository localLibrary =
-      await _createLocalLibraryRepository();
+      await createLocalLibraryRepository(telemetry: localLibraryTelemetry);
 
   runApp(
     MultiProvider(
@@ -44,8 +52,12 @@ Future<void> main() async {
         Provider<TrackRepository>.value(value: repo),
         Provider<LocalLibraryRepository>.value(value: localLibrary),
         Provider<AudioController>.value(value: audio),
+        Provider<LocalLibraryTelemetrySink>.value(value: localLibraryTelemetry),
         Provider<CatalogSearchTelemetrySink>.value(
           value: const NoopCatalogSearchTelemetrySink(),
+        ),
+        Provider<PlaybackTelemetrySink>.value(
+          value: const NoopPlaybackTelemetrySink(),
         ),
       ],
       child: const EdmmApp(),
@@ -53,12 +65,35 @@ Future<void> main() async {
   );
 }
 
-Future<LocalLibraryRepository> _createLocalLibraryRepository() async {
+Future<LocalLibraryRepository> createLocalLibraryRepository({
+  LocalLibraryTelemetrySink telemetry = const NoopLocalLibraryTelemetrySink(),
+  SharedPreferencesFactory? prefsFactory,
+  FileLocalLibraryRepositoryFactory? fileRepositoryFactory,
+  LocalLibraryRepositoryFactory? inMemoryRepositoryFactory,
+  LocalLibraryRepository? noopRepository,
+  bool debugLogging = kDebugMode,
+}) async {
+  final resolvePrefs = prefsFactory ?? SharedPreferences.getInstance;
+  final createFileRepository =
+      fileRepositoryFactory ??
+      ((prefs) => FileLocalLibraryRepository.open(prefs: prefs));
+  final createInMemoryRepository =
+      inMemoryRepositoryFactory ?? InMemoryLocalLibraryRepository.new;
+  final resolvedNoopRepository =
+      noopRepository ?? const NoopLocalLibraryRepository();
+
   try {
-    final prefs = await SharedPreferences.getInstance();
-    return await FileLocalLibraryRepository.open(prefs: prefs);
+    final prefs = await resolvePrefs();
+    return await createFileRepository(prefs);
   } catch (error, stackTrace) {
-    if (kDebugMode) {
+    telemetry.emit(
+      LocalLibraryTelemetryEvent.fallbackUsed(
+        attemptedRepository: 'file',
+        fallbackRepository: 'in_memory',
+        error: error,
+      ),
+    );
+    if (debugLogging) {
       debugPrint(
         'File local library repository init failed, using in-memory repository: $error\n$stackTrace',
       );
@@ -66,14 +101,21 @@ Future<LocalLibraryRepository> _createLocalLibraryRepository() async {
   }
 
   try {
-    return InMemoryLocalLibraryRepository();
+    return createInMemoryRepository();
   } catch (error, stackTrace) {
-    if (kDebugMode) {
+    telemetry.emit(
+      LocalLibraryTelemetryEvent.fallbackUsed(
+        attemptedRepository: 'in_memory',
+        fallbackRepository: 'noop',
+        error: error,
+      ),
+    );
+    if (debugLogging) {
       debugPrint(
         'In-memory local library repository init failed, using noop repository: $error\n$stackTrace',
       );
     }
-    return const NoopLocalLibraryRepository();
+    return resolvedNoopRepository;
   }
 }
 

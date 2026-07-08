@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../domain/audio/audio_controller.dart';
 import '../domain/repositories/track_repository.dart';
 import '../domain/telemetry/catalog_search_telemetry.dart';
+import '../domain/telemetry/playback_telemetry.dart';
 import '../ui/catalog_search/view_model/catalog_search_view_model.dart';
 import '../ui/catalog_search/widgets/catalog_search_screen.dart';
 import '../ui/player/view_model/player_view_model.dart';
@@ -52,7 +53,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: Routes.player,
       builder: (context, state) => PlayerScreen(
-        viewModel: PlayerViewModel(context.read<AudioController>()),
+        viewModel: PlayerViewModel(
+          context.read<AudioController>(),
+          telemetry: context.read<PlaybackTelemetrySink>(),
+        ),
       ),
     ),
   ],
