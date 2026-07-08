@@ -13,6 +13,7 @@ import '../ui/catalog_search/view_model/catalog_search_view_model.dart';
 import '../ui/catalog_search/widgets/catalog_search_screen.dart';
 import '../ui/player/view_model/player_view_model.dart';
 import '../ui/player/widgets/player_screen.dart';
+import '../ui/player/widgets/track_deep_link_screen.dart';
 import 'routes.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -24,7 +25,17 @@ final GoRouter appRouter = GoRouter(
         if (id == null || id.isEmpty) {
           return Routes.trackList;
         }
-        return trackDetailLocation(id);
+        return null;
+      },
+      builder: (context, state) {
+        final trackId = state.pathParameters['id'] ?? '';
+        return TrackDeepLinkScreen(
+          trackId: trackId,
+          trackRepository: context.read<TrackRepository>(),
+          localLibrary: context.read<LocalLibraryRepository>(),
+          audio: context.read<AudioController>(),
+          telemetry: context.read<PlaybackTelemetrySink>(),
+        );
       },
     ),
     GoRoute(
