@@ -8,5 +8,11 @@
   "tracksEmpty": "No tracks",
   "retry": "Retry",
   "nowPlaying": "Now Playing",
-  "unknownArtist": "Unknown artist"
+  "unknownArtist": "Unknown artist",
+  "searchHint": "Search tracks",
+  "tabPop": "Pop",
+  "tabEdm": "EDM",
+  "searchNoResults": "No matching tracks",
+  "clearSearch": "Clear search",
+  "catalogStaleWarning": "Showing saved results — couldn't refresh"
 }
