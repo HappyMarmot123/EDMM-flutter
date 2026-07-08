@@ -10,7 +10,8 @@ class TrackApiException implements Exception {
   final int? statusCode;
   final Object? cause;
   @override
-  String toString() => 'TrackApiException(statusCode: $statusCode, cause: $cause)';
+  String toString() =>
+      'TrackApiException(statusCode: $statusCode, cause: $cause)';
 }
 
 class TrackApiService {
@@ -21,18 +22,17 @@ class TrackApiService {
   Future<List<Track>> fetchCatalog({
     required CloudinaryCategory category,
     String query = '',
-  }) =>
-      _get('/api/cloudinary/tracks', {
-        'q': query,
-        'resourceType': 'all',
-        'category': category.wire,
-      });
+  }) => _get('/api/cloudinary/tracks', {
+    'q': query,
+    'resourceType': 'all',
+    'category': category.wire,
+  });
 
   Future<List<Track>> _get(
     String path,
     Map<String, String> queryParameters,
   ) async {
-    final base = Uri.parse(_config.bffBaseUrl);
+    final base = Uri.parse(_config.normalizedBffBaseUrl);
     final uri = Uri(
       scheme: base.scheme.isNotEmpty ? base.scheme : 'https',
       host: base.host,

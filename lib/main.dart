@@ -59,7 +59,7 @@ Future<void> _bootstrapAndRunApp({
   required SentryConfig sentryConfig,
   SentryTelemetryReporter? sentryReporter,
 }) async {
-  const config = AppConfig();
+  const config = AppConfig.fromEnvironment();
   final AudioController audio = await AudioService.init<JustAudioController>(
     builder: JustAudioController.new,
     config: const AudioServiceConfig(
