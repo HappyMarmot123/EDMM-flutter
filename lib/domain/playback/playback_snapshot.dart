@@ -32,13 +32,39 @@ class PlaybackSnapshot {
     bool? hasNext,
     bool? hasPrevious,
     Failure? error,
+    bool clearCurrentTrack = false,
+    bool clearQueueIndex = false,
+    bool clearError = false,
   }) => PlaybackSnapshot(
-        currentTrack: currentTrack ?? this.currentTrack,
+        currentTrack: clearCurrentTrack ? null : currentTrack ?? this.currentTrack,
         status: status ?? this.status,
         duration: duration ?? this.duration,
-        queueIndex: queueIndex ?? this.queueIndex,
+        queueIndex: clearQueueIndex ? null : queueIndex ?? this.queueIndex,
         hasNext: hasNext ?? this.hasNext,
         hasPrevious: hasPrevious ?? this.hasPrevious,
-        error: error ?? this.error,
+        error: clearError ? null : error ?? this.error,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlaybackSnapshot &&
+          currentTrack == other.currentTrack &&
+          status == other.status &&
+          duration == other.duration &&
+          queueIndex == other.queueIndex &&
+          hasNext == other.hasNext &&
+          hasPrevious == other.hasPrevious &&
+          error == other.error;
+
+  @override
+  int get hashCode => Object.hash(
+        currentTrack,
+        status,
+        duration,
+        queueIndex,
+        hasNext,
+        hasPrevious,
+        error,
       );
 }

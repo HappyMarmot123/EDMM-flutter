@@ -18,11 +18,24 @@ PlaybackStatus mapProcessingState(ProcessingState state, bool playing) {
   }
 }
 
+Uri? _absoluteHttpUri(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null || !uri.isAbsolute) return null;
+  if (uri.toString() != trimmed) return null;
+  final scheme = uri.scheme.toLowerCase();
+  return (scheme == 'http' || scheme == 'https') ? uri : null;
+}
+
+Uri? streamUriForTrack(Track track) =>
+    track.isPlayable ? _absoluteHttpUri(track.streamUrl) : null;
+
 MediaItem toMediaItem(Track track) => MediaItem(
-      id: track.streamUrl ?? track.id,
+      id: streamUriForTrack(track)?.toString() ?? track.id,
       title: track.title,
       artist: track.artistName,
       album: track.albumName,
       duration: track.duration,
-      artUri: track.artworkUrl.isNotEmpty ? Uri.parse(track.artworkUrl) : null,
+      artUri: _absoluteHttpUri(track.artworkUrl),
     );

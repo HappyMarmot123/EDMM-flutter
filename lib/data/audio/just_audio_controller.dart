@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../domain/audio/audio_controller.dart';
 import '../../domain/models/track.dart' as domain;
 import '../../domain/playback/playback_snapshot.dart';
+import '../../domain/result.dart';
 import 'playback_mapping.dart';
 
 class JustAudioController extends BaseAudioHandler
@@ -26,38 +27,68 @@ class JustAudioController extends BaseAudioHandler
   final _positionController = StreamController<Duration>.broadcast();
   final List<StreamSubscription<dynamic>> _subs = [];
   List<domain.Track> _tracks = const [];
+  PlaybackSnapshot _latestSnapshot = const PlaybackSnapshot();
 
   @override
-  Stream<PlaybackSnapshot> get snapshot => _snapshotController.stream;
+  Stream<PlaybackSnapshot> get snapshot async* {
+    yield _latestSnapshot;
+    yield* _snapshotController.stream;
+  }
+
   @override
   Stream<Duration> get position => _positionController.stream;
 
   @override
   Future<void> loadQueue(List<domain.Track> tracks,
       {int initialIndex = 0}) async {
-    _tracks = tracks;
-    queue.add(tracks.map(toMediaItem).toList());
-    await _player.setAudioSources(
-      [
-        for (final t in tracks)
-          AudioSource.uri(Uri.parse(t.streamUrl ?? '')),
-      ],
-      initialIndex: initialIndex,
-    );
-    _updateMediaItem(initialIndex);
-    _emitSnapshot();
+    final playable = <({domain.Track track, Uri uri, int originalIndex})>[];
+    for (var i = 0; i < tracks.length; i++) {
+      final uri = streamUriForTrack(tracks[i]);
+      if (uri != null) {
+        playable.add((track: tracks[i], uri: uri, originalIndex: i));
+      }
+    }
+
+    if (playable.isEmpty) {
+      _tracks = const [];
+      queue.add(const []);
+      mediaItem.add(null);
+      _emitError(const ParseFailure('No playable tracks'));
+      return;
+    }
+
+    var mappedInitialIndex =
+        playable.indexWhere((entry) => entry.originalIndex == initialIndex);
+    if (mappedInitialIndex < 0) {
+      mappedInitialIndex =
+          playable.indexWhere((entry) => entry.originalIndex > initialIndex);
+    }
+    if (mappedInitialIndex < 0) mappedInitialIndex = 0;
+
+    _tracks = [for (final entry in playable) entry.track];
+    queue.add(_tracks.map(toMediaItem).toList());
+    try {
+      await _player.setAudioSources(
+        [for (final entry in playable) AudioSource.uri(entry.uri)],
+        initialIndex: mappedInitialIndex,
+      );
+      _updateMediaItem(mappedInitialIndex);
+      _emitSnapshot();
+    } catch (e) {
+      _emitError(ParseFailure(e));
+    }
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() => _guard(_player.play);
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() => _guard(_player.pause);
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) => _guard(() => _player.seek(position));
   @override
-  Future<void> next() => _player.seekToNext();
+  Future<void> next() => _guard(_player.seekToNext);
   @override
-  Future<void> previous() => _player.seekToPrevious();
+  Future<void> previous() => _guard(_player.seekToPrevious);
 
   // OS media-control overrides (lock screen, Bluetooth, notification)
   @override
@@ -90,7 +121,7 @@ class JustAudioController extends BaseAudioHandler
     final current = (index != null && index >= 0 && index < _tracks.length)
         ? _tracks[index]
         : null;
-    _snapshotController.add(PlaybackSnapshot(
+    _setSnapshot(PlaybackSnapshot(
       currentTrack: current,
       status: mapProcessingState(_player.processingState, _player.playing),
       duration: _player.duration ?? Duration.zero,
@@ -98,6 +129,25 @@ class JustAudioController extends BaseAudioHandler
       hasNext: _player.hasNext,
       hasPrevious: _player.hasPrevious,
     ));
+  }
+
+  void _emitError(Failure error) {
+    _setSnapshot(PlaybackSnapshot(status: PlaybackStatus.error, error: error));
+  }
+
+  void _setSnapshot(PlaybackSnapshot snapshot) {
+    _latestSnapshot = snapshot;
+    if (!_snapshotController.isClosed) {
+      _snapshotController.add(snapshot);
+    }
+  }
+
+  Future<void> _guard(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      _emitError(ParseFailure(e));
+    }
   }
 
   void _broadcastState(PlaybackEvent event) {

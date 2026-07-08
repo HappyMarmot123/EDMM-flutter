@@ -31,4 +31,32 @@ void main() {
         artistName: 'A', durationMs: 1000, streamUrl: 'u', metadata: const {});
     expect(toMediaItem(t).artUri, isNull);
   });
+
+  test('toMediaItem ignores invalid artwork uri', () {
+    final t = Track(id: 'x', source: 'cloudinary', title: 'T', artistId: 'a',
+        artistName: 'A', durationMs: 1000, streamUrl: 'https://audio/x.m4a',
+        artworkUrl: 'https://art/%zz', metadata: const {});
+    expect(toMediaItem(t).artUri, isNull);
+  });
+
+  test('streamUriForTrack accepts only playable absolute http urls', () {
+    Track track(String? streamUrl, {String resourceType = 'video'}) => Track(
+          id: streamUrl ?? 'none',
+          source: 'cloudinary',
+          title: 'T',
+          artistId: 'a',
+          artistName: 'A',
+          durationMs: 1000,
+          streamUrl: streamUrl,
+          metadata: {'resourceType': resourceType},
+        );
+
+    expect(streamUriForTrack(track('https://audio/x.m4a')).toString(),
+        'https://audio/x.m4a');
+    expect(streamUriForTrack(track('')), isNull);
+    expect(streamUriForTrack(track('relative/path.m4a')), isNull);
+    expect(streamUriForTrack(track('ftp://audio/x.m4a')), isNull);
+    expect(streamUriForTrack(track('https://audio/%zz')), isNull);
+    expect(streamUriForTrack(track('https://image/x.jpg', resourceType: 'image')), isNull);
+  });
 }
