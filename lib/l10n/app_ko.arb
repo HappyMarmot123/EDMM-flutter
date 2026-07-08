@@ -15,5 +15,26 @@
   "tabRecent": "최근",
   "searchNoResults": "일치하는 트랙이 없습니다",
   "clearSearch": "검색 지우기",
-  "catalogStaleWarning": "저장된 결과 표시 중 — 새로고침 실패"
+  "catalogStaleWarning": "저장된 결과 표시 중 — 새로고침 실패",
+  "playerNoTrackLoaded": "로드된 트랙이 없습니다",
+  "playerDismiss": "닫기",
+  "playerEqualizer": "이퀄라이저",
+  "playerEqualizerUnavailable": "이 기기에서는 이퀄라이저를 사용할 수 없습니다",
+  "playbackStatusIdle": "대기",
+  "playbackStatusLoading": "로딩 중",
+  "playbackStatusReady": "준비됨",
+  "playbackStatusPlaying": "재생 중",
+  "playbackStatusPaused": "일시정지",
+  "playbackStatusCompleted": "완료",
+  "playbackStatusError": "오류",
+  "playbackErrorNetwork": "오디오를 불러오는 중 네트워크 문제가 발생했습니다",
+  "playbackErrorServer": "서버 오류 ({statusCode})",
+  "@playbackErrorServer": {
+    "placeholders": {
+      "statusCode": {
+        "type": "int"
+      }
+    }
+  },
+  "playbackErrorInvalidData": "재생 데이터가 올바르지 않습니다"
 }

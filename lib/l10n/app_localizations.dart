@@ -193,6 +193,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Showing saved results — couldn\'t refresh'**
   String get catalogStaleWarning;
+
+  /// No description provided for @playerNoTrackLoaded.
+  ///
+  /// In en, this message translates to:
+  /// **'No track loaded'**
+  String get playerNoTrackLoaded;
+
+  /// No description provided for @playerDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get playerDismiss;
+
+  /// No description provided for @playerEqualizer.
+  ///
+  /// In en, this message translates to:
+  /// **'Equalizer'**
+  String get playerEqualizer;
+
+  /// No description provided for @playerEqualizerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Equalizer is unavailable on this device'**
+  String get playerEqualizerUnavailable;
+
+  /// No description provided for @playbackStatusIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Idle'**
+  String get playbackStatusIdle;
+
+  /// No description provided for @playbackStatusLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get playbackStatusLoading;
+
+  /// No description provided for @playbackStatusReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get playbackStatusReady;
+
+  /// No description provided for @playbackStatusPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing'**
+  String get playbackStatusPlaying;
+
+  /// No description provided for @playbackStatusPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get playbackStatusPaused;
+
+  /// No description provided for @playbackStatusCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get playbackStatusCompleted;
+
+  /// No description provided for @playbackStatusError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get playbackStatusError;
+
+  /// No description provided for @playbackErrorNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Network issue while loading audio'**
+  String get playbackErrorNetwork;
+
+  /// No description provided for @playbackErrorServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Server error ({statusCode})'**
+  String playbackErrorServer(int statusCode);
+
+  /// No description provided for @playbackErrorInvalidData.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback data is invalid'**
+  String get playbackErrorInvalidData;
 }
 
 class _AppLocalizationsDelegate

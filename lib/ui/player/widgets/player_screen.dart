@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../../../domain/audio/audio_effects_controller.dart';
 import '../../../domain/playback/playback_snapshot.dart';
 import '../../../domain/result.dart';
 import '../../../l10n/app_localizations.dart';
@@ -15,7 +18,6 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   bool _expanded = true;
-  bool _eqEnabled = false;
   bool _visualizerEnabled = false;
 
   @override
@@ -33,21 +35,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Icons.volume_up;
   }
 
-  String _statusText(PlaybackStatus status) => switch (status) {
-    PlaybackStatus.idle => 'idle',
-    PlaybackStatus.loading => 'loading',
-    PlaybackStatus.ready => 'ready',
-    PlaybackStatus.playing => 'playing',
-    PlaybackStatus.paused => 'paused',
-    PlaybackStatus.completed => 'completed',
-    PlaybackStatus.error => 'error',
-  };
+  String _statusText(AppLocalizations l10n, PlaybackStatus status) =>
+      switch (status) {
+        PlaybackStatus.idle => l10n.playbackStatusIdle,
+        PlaybackStatus.loading => l10n.playbackStatusLoading,
+        PlaybackStatus.ready => l10n.playbackStatusReady,
+        PlaybackStatus.playing => l10n.playbackStatusPlaying,
+        PlaybackStatus.paused => l10n.playbackStatusPaused,
+        PlaybackStatus.completed => l10n.playbackStatusCompleted,
+        PlaybackStatus.error => l10n.playbackStatusError,
+      };
 
-  String _errorText(Failure failure) => switch (failure) {
-    NetworkFailure() => 'Network issue while loading audio',
-    ServerFailure(:final statusCode) => 'Server error ($statusCode)',
-    ParseFailure() => 'Playback data is invalid',
-  };
+  String _errorText(AppLocalizations l10n, Failure failure) =>
+      switch (failure) {
+        NetworkFailure() => l10n.playbackErrorNetwork,
+        ServerFailure(:final statusCode) => l10n.playbackErrorServer(
+          statusCode,
+        ),
+        ParseFailure() => l10n.playbackErrorInvalidData,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -60,9 +66,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           IconButton(
             icon: Icon(_expanded ? Icons.expand_more : Icons.expand_less),
             key: const Key('player-expand-toggle'),
-            onPressed: () {
-              setState(() => _expanded = !_expanded);
-            },
+            onPressed: () => setState(() => _expanded = !_expanded),
           ),
         ],
       ),
@@ -78,20 +82,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (vm.hasError)
-                MaterialBanner(
-                    backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                    content: Text(_errorText(vm.snapshot.error!)),
+                  MaterialBanner(
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.errorContainer,
+                    content: Text(_errorText(l10n, vm.snapshot.error!)),
                     actions: [
                       TextButton(
                         onPressed: () {},
-                        child: const Text('Dismiss'),
+                        child: Text(l10n.playerDismiss),
                       ),
                     ],
                   ),
                 if (track == null)
-                  const Expanded(
-                    child: Center(child: Text('No track loaded')),
-                  )
+                  Expanded(child: Center(child: Text(l10n.playerNoTrackLoaded)))
                 else if (!_expanded)
                   Expanded(child: _buildMiniBody(vm, l10n))
                 else
@@ -109,7 +113,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     return Column(
       children: [
-        Text(_statusText(vm.snapshot.status), style: Theme.of(context).textTheme.labelLarge),
+        Text(
+          _statusText(l10n, vm.snapshot.status),
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
         const SizedBox(height: 12),
         Expanded(
           child: Center(
@@ -117,13 +124,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ? Image.network(
                     track.artworkUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.album, size: 160),
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.album, size: 160),
                   )
                 : const Icon(Icons.album, size: 160),
           ),
         ),
         Text(track.title, style: Theme.of(context).textTheme.titleLarge),
         Text(track.artistName.isEmpty ? l10n.unknownArtist : track.artistName),
+        if (_visualizerEnabled)
+          SizedBox(
+            height: 72,
+            child: _PlaybackVisualizer(
+              key: const Key('player-visualizer'),
+              position: vm.position,
+              trackId: track.id,
+            ),
+          ),
         const SizedBox(height: 16),
         StreamBuilder<Duration>(
           stream: vm.position,
@@ -138,14 +155,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   key: const Key('player-progress-slider'),
                   value: pos.inMilliseconds.clamp(0, total).toDouble(),
                   max: total.toDouble(),
-                  onChanged: (value) => vm.seek(Duration(milliseconds: value.round())),
+                  onChanged: (value) =>
+                      vm.seek(Duration(milliseconds: value.round())),
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(_fmt(pos)),
-                    Text(_fmt(vm.snapshot.duration)),
-                  ],
+                  children: [Text(_fmt(pos)), Text(_fmt(vm.snapshot.duration))],
                 ),
               ],
             );
@@ -159,7 +174,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
               iconSize: 38,
               icon: Icon(
                 vm.isShuffleEnabled ? Icons.shuffle_on : Icons.shuffle,
-                color: vm.isShuffleEnabled ? Theme.of(context).colorScheme.primary : null,
+                color: vm.isShuffleEnabled
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
               ),
               onPressed: vm.toggleShuffle,
             ),
@@ -171,7 +188,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ),
             IconButton(
               iconSize: 56,
-              icon: Icon(vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow),
+              icon: Icon(
+                vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
+              ),
               onPressed: vm.playPause,
             ),
             IconButton(
@@ -183,16 +202,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
             IconButton(
               key: const Key('player-eq-toggle'),
               iconSize: 28,
-              icon: Icon(_eqEnabled ? Icons.tune : Icons.tune_outlined),
-              onPressed: () => setState(() => _eqEnabled = !_eqEnabled),
+              icon: Icon(
+                vm.isEqualizerEnabled ? Icons.tune : Icons.tune_outlined,
+              ),
+              onPressed: vm.toggleEqualizer,
             ),
             IconButton(
               key: const Key('player-visualizer-toggle'),
               iconSize: 28,
               icon: Icon(
-                _visualizerEnabled ? Icons.graphic_eq : Icons.bar_chart_outlined,
+                _visualizerEnabled
+                    ? Icons.graphic_eq
+                    : Icons.bar_chart_outlined,
               ),
-              onPressed: () => setState(() => _visualizerEnabled = !_visualizerEnabled),
+              onPressed: () =>
+                  setState(() => _visualizerEnabled = !_visualizerEnabled),
             ),
           ],
         ),
@@ -216,11 +240,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             Text('${(vm.volume * 100).round()}%'),
           ],
         ),
-        if (_eqEnabled || _visualizerEnabled)
-          Text(
-            'EQ / visualizer scope toggled',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+        if (vm.isEqualizerEnabled) _EqualizerPanel(viewModel: vm, l10n: l10n),
       ],
     );
   }
@@ -239,7 +259,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 width: 72,
                 height: 72,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note),
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.music_note),
               )
             else
               const Icon(Icons.music_note, size: 72),
@@ -249,9 +270,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
                   Text(
-                    track.artistName.isEmpty ? l10n.unknownArtist : track.artistName,
+                    track.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    track.artistName.isEmpty
+                        ? l10n.unknownArtist
+                        : track.artistName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
@@ -265,7 +292,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
               onPressed: vm.toggleMute,
             ),
             IconButton(
-              icon: Icon(vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow),
+              icon: Icon(
+                vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
+              ),
               onPressed: vm.playPause,
               iconSize: 36,
             ),
@@ -273,5 +302,159 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
       ),
     );
+  }
+}
+
+class _EqualizerPanel extends StatelessWidget {
+  const _EqualizerPanel({required this.viewModel, required this.l10n});
+
+  final PlayerViewModel viewModel;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final bands = viewModel.equalizerBands;
+    return SizedBox(
+      key: const Key('player-eq-panel'),
+      height: 116,
+      child: bands.isEmpty
+          ? Center(
+              child: Text(
+                l10n.playerEqualizerUnavailable,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.playerEqualizer,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (final band in bands)
+                        Expanded(
+                          child: _EqualizerBandSlider(
+                            band: band,
+                            onChanged: (value) => viewModel
+                                .setEqualizerBandGain(band.index, value),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _EqualizerBandSlider extends StatelessWidget {
+  const _EqualizerBandSlider({required this.band, required this.onChanged});
+
+  final AudioEqualizerBand band;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: RotatedBox(
+            quarterTurns: 3,
+            child: Slider(
+              key: Key('player-eq-band-${band.index}'),
+              value: band.gain.clamp(band.minGain, band.maxGain).toDouble(),
+              min: band.minGain,
+              max: band.maxGain,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+        Text(
+          band.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _PlaybackVisualizer extends StatelessWidget {
+  const _PlaybackVisualizer({
+    super.key,
+    required this.position,
+    required this.trackId,
+  });
+
+  final Stream<Duration> position;
+  final String trackId;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Duration>(
+      stream: position,
+      builder: (context, snapshot) {
+        return CustomPaint(
+          painter: _VisualizerPainter(
+            position: snapshot.data ?? Duration.zero,
+            seed: trackId.hashCode,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          child: const SizedBox.expand(),
+        );
+      },
+    );
+  }
+}
+
+class _VisualizerPainter extends CustomPainter {
+  const _VisualizerPainter({
+    required this.position,
+    required this.seed,
+    required this.color,
+  });
+
+  final Duration position;
+  final int seed;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    const barCount = 24;
+    final gap = size.width / (barCount * 3);
+    final barWidth = (size.width - gap * (barCount - 1)) / barCount;
+    final phase = position.inMilliseconds / 220.0;
+
+    for (var i = 0; i < barCount; i++) {
+      final wave = math.sin(phase + i * 0.72 + seed % 11);
+      final pulse = math.cos(phase * 0.37 + i * 1.31);
+      final normalized = ((wave + pulse) / 4.0 + 0.5).clamp(0.12, 1.0);
+      final height = size.height * normalized;
+      final left = i * (barWidth + gap);
+      final top = (size.height - height) / 2;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(left, top, barWidth, height),
+          Radius.circular(barWidth / 2),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _VisualizerPainter oldDelegate) {
+    return oldDelegate.position != position ||
+        oldDelegate.seed != seed ||
+        oldDelegate.color != color;
   }
 }

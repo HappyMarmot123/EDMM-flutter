@@ -55,4 +55,49 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get catalogStaleWarning => 'Showing saved results — couldn\'t refresh';
+
+  @override
+  String get playerNoTrackLoaded => 'No track loaded';
+
+  @override
+  String get playerDismiss => 'Dismiss';
+
+  @override
+  String get playerEqualizer => 'Equalizer';
+
+  @override
+  String get playerEqualizerUnavailable =>
+      'Equalizer is unavailable on this device';
+
+  @override
+  String get playbackStatusIdle => 'Idle';
+
+  @override
+  String get playbackStatusLoading => 'Loading';
+
+  @override
+  String get playbackStatusReady => 'Ready';
+
+  @override
+  String get playbackStatusPlaying => 'Playing';
+
+  @override
+  String get playbackStatusPaused => 'Paused';
+
+  @override
+  String get playbackStatusCompleted => 'Completed';
+
+  @override
+  String get playbackStatusError => 'Error';
+
+  @override
+  String get playbackErrorNetwork => 'Network issue while loading audio';
+
+  @override
+  String playbackErrorServer(int statusCode) {
+    return 'Server error ($statusCode)';
+  }
+
+  @override
+  String get playbackErrorInvalidData => 'Playback data is invalid';
 }

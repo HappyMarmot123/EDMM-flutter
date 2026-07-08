@@ -1,7 +1,9 @@
 // lib/data/audio/just_audio_controller.dart
 import 'dart:async';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import '../../domain/audio/audio_effects_controller.dart';
 import '../../domain/audio/audio_controller.dart';
 import '../../domain/models/track.dart' as domain;
 import '../../domain/playback/playback_snapshot.dart';
@@ -10,19 +12,24 @@ import 'playback_mapping.dart';
 
 class JustAudioController extends BaseAudioHandler
     with QueueHandler, SeekHandler
-    implements AudioController {
+    implements AudioController, AudioEffectsController {
   JustAudioController() {
     _subs.add(_player.playbackEventStream.listen(_broadcastState));
     _subs.add(_player.positionStream.listen(_positionController.add));
     _subs.add(_player.durationStream.listen((_) => _emitSnapshot()));
-    _subs.add(_player.currentIndexStream.listen((index) {
-      _updateMediaItem(index);
-      _emitSnapshot();
-    }));
+    _subs.add(
+      _player.currentIndexStream.listen((index) {
+        _updateMediaItem(index);
+        _emitSnapshot();
+      }),
+    );
     _subs.add(_player.playerStateStream.listen((_) => _emitSnapshot()));
   }
 
-  final AudioPlayer _player = AudioPlayer();
+  final AndroidEqualizer _equalizer = AndroidEqualizer();
+  late final AudioPlayer _player = AudioPlayer(
+    audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer]),
+  );
   final _snapshotController = StreamController<PlaybackSnapshot>.broadcast();
   final _positionController = StreamController<Duration>.broadcast();
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -30,6 +37,7 @@ class JustAudioController extends BaseAudioHandler
   PlaybackSnapshot _latestSnapshot = const PlaybackSnapshot();
   bool _shuffleEnabled = false;
   double _volume = 1.0;
+  bool _equalizerEnabled = false;
 
   @override
   Stream<PlaybackSnapshot> get snapshot async* {
@@ -47,8 +55,61 @@ class JustAudioController extends BaseAudioHandler
   double get volume => _volume;
 
   @override
-  Future<void> loadQueue(List<domain.Track> tracks,
-      {int initialIndex = 0}) async {
+  bool get isEqualizerEnabled => _equalizerEnabled;
+
+  bool get _supportsAndroidEqualizer =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  @override
+  Future<List<AudioEqualizerBand>> getEqualizerBands() async {
+    if (!_supportsAndroidEqualizer) return const [];
+    try {
+      final parameters = await _equalizer.parameters.timeout(
+        const Duration(seconds: 1),
+      );
+      return [
+        for (final band in parameters.bands)
+          AudioEqualizerBand(
+            index: band.index,
+            label: _formatFrequency(band.centerFrequency),
+            minGain: parameters.minDecibels,
+            maxGain: parameters.maxDecibels,
+            gain: band.gain,
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> setEqualizerEnabled(bool enabled) async {
+    _equalizerEnabled = enabled;
+    if (!_supportsAndroidEqualizer) return;
+    await _guard(() => _equalizer.setEnabled(enabled));
+  }
+
+  @override
+  Future<void> setEqualizerBandGain(int index, double gain) async {
+    if (!_supportsAndroidEqualizer) return;
+    await _guard(() async {
+      final parameters = await _equalizer.parameters.timeout(
+        const Duration(seconds: 1),
+      );
+      for (final band in parameters.bands) {
+        if (band.index == index) {
+          await band.setGain(gain);
+          return;
+        }
+      }
+    });
+  }
+
+  @override
+  Future<void> loadQueue(
+    List<domain.Track> tracks, {
+    int initialIndex = 0,
+  }) async {
     final playable = <({domain.Track track, Uri uri, int originalIndex})>[];
     for (var i = 0; i < tracks.length; i++) {
       final uri = streamUriForTrack(tracks[i]);
@@ -65,21 +126,22 @@ class JustAudioController extends BaseAudioHandler
       return;
     }
 
-    var mappedInitialIndex =
-        playable.indexWhere((entry) => entry.originalIndex == initialIndex);
+    var mappedInitialIndex = playable.indexWhere(
+      (entry) => entry.originalIndex == initialIndex,
+    );
     if (mappedInitialIndex < 0) {
-      mappedInitialIndex =
-          playable.indexWhere((entry) => entry.originalIndex > initialIndex);
+      mappedInitialIndex = playable.indexWhere(
+        (entry) => entry.originalIndex > initialIndex,
+      );
     }
     if (mappedInitialIndex < 0) mappedInitialIndex = 0;
 
     _tracks = [for (final entry in playable) entry.track];
     queue.add(_tracks.map(toMediaItem).toList());
     try {
-      await _player.setAudioSources(
-        [for (final entry in playable) AudioSource.uri(entry.uri)],
-        initialIndex: mappedInitialIndex,
-      );
+      await _player.setAudioSources([
+        for (final entry in playable) AudioSource.uri(entry.uri),
+      ], initialIndex: mappedInitialIndex);
       _updateMediaItem(mappedInitialIndex);
       _emitSnapshot();
     } catch (e) {
@@ -88,21 +150,20 @@ class JustAudioController extends BaseAudioHandler
   }
 
   @override
-  Future<void> setShuffleEnabled(bool enabled) =>
-      _guard(() async {
-        await _player.setShuffleModeEnabled(enabled);
-        _shuffleEnabled = enabled;
-        if (enabled) {
-          await _player.shuffle();
-        }
-      });
+  Future<void> setShuffleEnabled(bool enabled) => _guard(() async {
+    await _player.setShuffleModeEnabled(enabled);
+    _shuffleEnabled = enabled;
+    if (enabled) {
+      await _player.shuffle();
+    }
+  });
 
   @override
   Future<void> setVolume(double volume) => _guard(() async {
-        final clamped = volume.clamp(0.0, 1.0).toDouble();
-        _volume = clamped;
-        await _player.setVolume(clamped);
-      });
+    final clamped = volume.clamp(0.0, 1.0).toDouble();
+    _volume = clamped;
+    await _player.setVolume(clamped);
+  });
 
   @override
   Future<void> setMute(bool muted) => setVolume(muted ? 0.0 : 1.0);
@@ -149,14 +210,16 @@ class JustAudioController extends BaseAudioHandler
     final current = (index != null && index >= 0 && index < _tracks.length)
         ? _tracks[index]
         : null;
-    _setSnapshot(PlaybackSnapshot(
-      currentTrack: current,
-      status: mapProcessingState(_player.processingState, _player.playing),
-      duration: _player.duration ?? Duration.zero,
-      queueIndex: index,
-      hasNext: _player.hasNext,
-      hasPrevious: _player.hasPrevious,
-    ));
+    _setSnapshot(
+      PlaybackSnapshot(
+        currentTrack: current,
+        status: mapProcessingState(_player.processingState, _player.playing),
+        duration: _player.duration ?? Duration.zero,
+        queueIndex: index,
+        hasNext: _player.hasNext,
+        hasPrevious: _player.hasPrevious,
+      ),
+    );
   }
 
   void _emitError(Failure error) {
@@ -179,23 +242,33 @@ class JustAudioController extends BaseAudioHandler
   }
 
   void _broadcastState(PlaybackEvent event) {
-    playbackState.add(playbackState.value.copyWith(
-      controls: [
-        MediaControl.skipToPrevious,
-        if (_player.playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
-      ],
-      systemActions: const {MediaAction.seek},
-      processingState: const {
-        ProcessingState.idle: AudioProcessingState.idle,
-        ProcessingState.loading: AudioProcessingState.loading,
-        ProcessingState.buffering: AudioProcessingState.buffering,
-        ProcessingState.ready: AudioProcessingState.ready,
-        ProcessingState.completed: AudioProcessingState.completed,
-      }[_player.processingState]!,
-      playing: _player.playing,
-      updatePosition: _player.position,
-      queueIndex: event.currentIndex,
-    ));
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (_player.playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {MediaAction.seek},
+        processingState: const {
+          ProcessingState.idle: AudioProcessingState.idle,
+          ProcessingState.loading: AudioProcessingState.loading,
+          ProcessingState.buffering: AudioProcessingState.buffering,
+          ProcessingState.ready: AudioProcessingState.ready,
+          ProcessingState.completed: AudioProcessingState.completed,
+        }[_player.processingState]!,
+        playing: _player.playing,
+        updatePosition: _player.position,
+        queueIndex: event.currentIndex,
+      ),
+    );
+  }
+
+  String _formatFrequency(double frequency) {
+    if (frequency >= 1000) {
+      final khz = frequency / 1000;
+      return '${khz.toStringAsFixed(khz >= 10 ? 0 : 1)} kHz';
+    }
+    return '${frequency.round()} Hz';
   }
 }

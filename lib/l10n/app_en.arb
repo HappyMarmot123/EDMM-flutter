@@ -15,5 +15,26 @@
   "tabRecent": "Recent",
   "searchNoResults": "No matching tracks",
   "clearSearch": "Clear search",
-  "catalogStaleWarning": "Showing saved results — couldn't refresh"
+  "catalogStaleWarning": "Showing saved results — couldn't refresh",
+  "playerNoTrackLoaded": "No track loaded",
+  "playerDismiss": "Dismiss",
+  "playerEqualizer": "Equalizer",
+  "playerEqualizerUnavailable": "Equalizer is unavailable on this device",
+  "playbackStatusIdle": "Idle",
+  "playbackStatusLoading": "Loading",
+  "playbackStatusReady": "Ready",
+  "playbackStatusPlaying": "Playing",
+  "playbackStatusPaused": "Paused",
+  "playbackStatusCompleted": "Completed",
+  "playbackStatusError": "Error",
+  "playbackErrorNetwork": "Network issue while loading audio",
+  "playbackErrorServer": "Server error ({statusCode})",
+  "@playbackErrorServer": {
+    "placeholders": {
+      "statusCode": {
+        "type": "int"
+      }
+    }
+  },
+  "playbackErrorInvalidData": "Playback data is invalid"
 }

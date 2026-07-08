@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../../../domain/audio/audio_effects_controller.dart';
 import '../../../domain/audio/audio_controller.dart';
 import '../../../data/repositories/noop_local_library_repository.dart';
 import '../../../domain/logic/playback_persistence.dart';
@@ -9,11 +10,18 @@ import '../../../domain/telemetry/playback_telemetry.dart';
 
 class PlayerViewModel extends ChangeNotifier {
   PlayerViewModel(
-    this._audio, {
+    AudioController audio, {
     PlaybackTelemetrySink? telemetry,
     LocalLibraryRepository? localLibrary,
-  }) : _telemetry = telemetry ?? const NoopPlaybackTelemetrySink(),
-       _localLibrary = localLibrary ?? const NoopLocalLibraryRepository() {
+    AudioEffectsController? effectsController,
+  }) : _audio = audio,
+       _telemetry = telemetry ?? const NoopPlaybackTelemetrySink(),
+       _localLibrary = localLibrary ?? const NoopLocalLibraryRepository(),
+       _effectsController =
+           effectsController ??
+           (audio is AudioEffectsController
+               ? audio as AudioEffectsController
+               : const NoopAudioEffectsController()) {
     _sub = _audio.snapshot.listen((s) {
       snapshot = s;
       _emitPlaybackErrorTelemetry(s);
@@ -24,17 +32,22 @@ class PlayerViewModel extends ChangeNotifier {
     _mute = _volume <= 0;
     _prevVolume = _volume > 0 ? _volume : 1.0;
     _shuffleEnabled = _audio.isShuffleEnabled;
+    _equalizerEnabled = _effectsController.isEqualizerEnabled;
+    unawaited(_loadEqualizerBands());
   }
 
   final AudioController _audio;
   final PlaybackTelemetrySink _telemetry;
   final LocalLibraryRepository _localLibrary;
+  final AudioEffectsController _effectsController;
   late final StreamSubscription<PlaybackSnapshot> _sub;
   bool _mute = false;
   double _volume = 1.0;
   double _prevVolume = 1.0;
   bool _shuffleEnabled = false;
   String? _lastPersistedTrackId;
+  bool _equalizerEnabled = false;
+  List<AudioEqualizerBand> _equalizerBands = const [];
 
   PlaybackSnapshot snapshot = const PlaybackSnapshot();
   Stream<Duration> get position => _audio.position;
@@ -42,6 +55,8 @@ class PlayerViewModel extends ChangeNotifier {
   bool get isMuted => _mute;
   double get volume => _volume;
   bool get isShuffleEnabled => _shuffleEnabled;
+  bool get isEqualizerEnabled => _equalizerEnabled;
+  List<AudioEqualizerBand> get equalizerBands => _equalizerBands;
 
   Future<void> playPause() =>
       snapshot.isPlaying ? _audio.pause() : _audio.play();
@@ -81,6 +96,25 @@ class PlayerViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> toggleEqualizer() async {
+    final enabled = !_equalizerEnabled;
+    await _effectsController.setEqualizerEnabled(enabled);
+    _equalizerEnabled = enabled;
+    if (_equalizerBands.isEmpty) {
+      await _loadEqualizerBands(notify: false);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setEqualizerBandGain(int index, double gain) async {
+    await _effectsController.setEqualizerBandGain(index, gain);
+    _equalizerBands = [
+      for (final band in _equalizerBands)
+        band.index == index ? band.copyWith(gain: gain) : band,
+    ];
+    notifyListeners();
+  }
+
   bool get hasError => snapshot.error != null;
 
   void _emitPlaybackErrorTelemetry(PlaybackSnapshot snapshot) {
@@ -94,6 +128,11 @@ class PlayerViewModel extends ChangeNotifier {
     if (track.id == _lastPersistedTrackId) return;
     _lastPersistedTrackId = track.id;
     unawaited(persistPlaybackTrack(_localLibrary, track));
+  }
+
+  Future<void> _loadEqualizerBands({bool notify = true}) async {
+    _equalizerBands = await _effectsController.getEqualizerBands();
+    if (notify) notifyListeners();
   }
 
   @override

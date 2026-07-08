@@ -55,4 +55,48 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get catalogStaleWarning => '저장된 결과 표시 중 — 새로고침 실패';
+
+  @override
+  String get playerNoTrackLoaded => '로드된 트랙이 없습니다';
+
+  @override
+  String get playerDismiss => '닫기';
+
+  @override
+  String get playerEqualizer => '이퀄라이저';
+
+  @override
+  String get playerEqualizerUnavailable => '이 기기에서는 이퀄라이저를 사용할 수 없습니다';
+
+  @override
+  String get playbackStatusIdle => '대기';
+
+  @override
+  String get playbackStatusLoading => '로딩 중';
+
+  @override
+  String get playbackStatusReady => '준비됨';
+
+  @override
+  String get playbackStatusPlaying => '재생 중';
+
+  @override
+  String get playbackStatusPaused => '일시정지';
+
+  @override
+  String get playbackStatusCompleted => '완료';
+
+  @override
+  String get playbackStatusError => '오류';
+
+  @override
+  String get playbackErrorNetwork => '오디오를 불러오는 중 네트워크 문제가 발생했습니다';
+
+  @override
+  String playbackErrorServer(int statusCode) {
+    return '서버 오류 ($statusCode)';
+  }
+
+  @override
+  String get playbackErrorInvalidData => '재생 데이터가 올바르지 않습니다';
 }
