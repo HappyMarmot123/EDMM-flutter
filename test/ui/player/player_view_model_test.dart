@@ -8,17 +8,73 @@ import 'package:edmm/ui/player/view_model/player_view_model.dart';
 class _FakeAudio implements AudioController {
   final _snap = StreamController<PlaybackSnapshot>.broadcast();
   final _pos = StreamController<Duration>.broadcast();
-  int plays = 0, pauses = 0, nexts = 0, previouses = 0, seeks = 0;
+
+  int plays = 0;
+  int pauses = 0;
+  int nexts = 0;
+  int previouses = 0;
+  int seeks = 0;
   Duration? lastSeek;
-  @override Stream<PlaybackSnapshot> get snapshot => _snap.stream;
-  @override Stream<Duration> get position => _pos.stream;
-  @override Future<void> play() async => plays++;
-  @override Future<void> pause() async => pauses++;
-  @override Future<void> seek(Duration position) async { seeks++; lastSeek = position; }
-  @override Future<void> next() async => nexts++;
-  @override Future<void> previous() async => previouses++;
-  @override Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
-  @override Future<void> dispose() async {}
+
+  bool shuffleEnabled = false;
+  double _volume = 1.0;
+  final setShuffleCalls = <bool>[];
+  final setVolumeCalls = <double>[];
+  final setMuteCalls = <bool>[];
+
+  @override
+  Stream<PlaybackSnapshot> get snapshot => _snap.stream;
+
+  @override
+  Stream<Duration> get position => _pos.stream;
+
+  @override
+  bool get isShuffleEnabled => shuffleEnabled;
+
+  @override
+  double get volume => _volume;
+
+  @override
+  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+
+  @override
+  Future<void> setShuffleEnabled(bool enabled) async {
+    shuffleEnabled = enabled;
+    setShuffleCalls.add(enabled);
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    _volume = volume;
+    setVolumeCalls.add(volume);
+  }
+
+  @override
+  Future<void> setMute(bool muted) async {
+    setMuteCalls.add(muted);
+    _volume = muted ? 0.0 : 1.0;
+  }
+
+  @override
+  Future<void> play() async => plays++;
+
+  @override
+  Future<void> pause() async => pauses++;
+
+  @override
+  Future<void> seek(Duration position) async {
+    seeks++;
+    lastSeek = position;
+  }
+
+  @override
+  Future<void> next() async => nexts++;
+
+  @override
+  Future<void> previous() async => previouses++;
+
+  @override
+  Future<void> dispose() async {}
 }
 
 void main() {
@@ -58,5 +114,48 @@ void main() {
     expect(audio.lastSeek, const Duration(seconds: 7));
     expect(audio.nexts, 1);
     expect(audio.previouses, 1);
+  });
+
+  test('toggleShuffle updates shuffle state and controller state', () async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    await vm.toggleShuffle();
+    expect(audio.setShuffleCalls, [true]);
+    expect(vm.isShuffleEnabled, isTrue);
+
+    await vm.toggleShuffle();
+    expect(audio.setShuffleCalls, [true, false]);
+    expect(vm.isShuffleEnabled, isFalse);
+  });
+
+  test('setVolume clamps and updates muted state', () async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+
+    await vm.setVolume(0.2);
+    expect(audio.setVolumeCalls, [0.2]);
+    expect(vm.volume, closeTo(0.2, 0.0001));
+    expect(vm.isMuted, isFalse);
+
+    await vm.setVolume(-0.5);
+    expect(audio.setVolumeCalls.last, 0.0);
+    expect(vm.volume, 0.0);
+    expect(vm.isMuted, isTrue);
+  });
+
+  test('toggleMute delegates to mute API and restores previous volume', () async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    await vm.setVolume(0.75);
+
+    await vm.toggleMute();
+    expect(audio.setMuteCalls, [true]);
+    expect(vm.isMuted, isTrue);
+    expect(vm.volume, 0.0);
+
+    await vm.toggleMute();
+    expect(audio.setMuteCalls, [true, false]);
+    expect(vm.isMuted, isFalse);
+    expect(vm.volume, closeTo(0.75, 0.0001));
   });
 }

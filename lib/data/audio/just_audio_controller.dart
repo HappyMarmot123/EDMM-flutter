@@ -28,6 +28,8 @@ class JustAudioController extends BaseAudioHandler
   final List<StreamSubscription<dynamic>> _subs = [];
   List<domain.Track> _tracks = const [];
   PlaybackSnapshot _latestSnapshot = const PlaybackSnapshot();
+  bool _shuffleEnabled = false;
+  double _volume = 1.0;
 
   @override
   Stream<PlaybackSnapshot> get snapshot async* {
@@ -37,6 +39,12 @@ class JustAudioController extends BaseAudioHandler
 
   @override
   Stream<Duration> get position => _positionController.stream;
+
+  @override
+  bool get isShuffleEnabled => _shuffleEnabled;
+
+  @override
+  double get volume => _volume;
 
   @override
   Future<void> loadQueue(List<domain.Track> tracks,
@@ -78,6 +86,26 @@ class JustAudioController extends BaseAudioHandler
       _emitError(ParseFailure(e));
     }
   }
+
+  @override
+  Future<void> setShuffleEnabled(bool enabled) =>
+      _guard(() async {
+        await _player.setShuffleModeEnabled(enabled);
+        _shuffleEnabled = enabled;
+        if (enabled) {
+          await _player.shuffle();
+        }
+      });
+
+  @override
+  Future<void> setVolume(double volume) => _guard(() async {
+        final clamped = volume.clamp(0.0, 1.0).toDouble();
+        _volume = clamped;
+        await _player.setVolume(clamped);
+      });
+
+  @override
+  Future<void> setMute(bool muted) => setVolume(muted ? 0.0 : 1.0);
 
   @override
   Future<void> play() => _guard(_player.play);

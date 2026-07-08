@@ -4,7 +4,12 @@ import '../playback/playback_snapshot.dart';
 abstract class AudioController {
   Stream<PlaybackSnapshot> get snapshot;
   Stream<Duration> get position;
+  bool get isShuffleEnabled;
+  double get volume;
   Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0});
+  Future<void> setShuffleEnabled(bool enabled);
+  Future<void> setVolume(double volume);
+  Future<void> setMute(bool muted);
   Future<void> play();
   Future<void> pause();
   Future<void> seek(Duration position);

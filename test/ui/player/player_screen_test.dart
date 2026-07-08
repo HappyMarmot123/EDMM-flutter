@@ -5,23 +5,83 @@ import 'package:edmm/l10n/app_localizations.dart';
 import 'package:edmm/domain/audio/audio_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
+import 'package:edmm/domain/result.dart';
 import 'package:edmm/ui/player/view_model/player_view_model.dart';
 import 'package:edmm/ui/player/widgets/player_screen.dart';
 
 class _FakeAudio implements AudioController {
-  final snap = StreamController<PlaybackSnapshot>.broadcast();
-  final pos = StreamController<Duration>.broadcast();
-  int plays = 0, nexts = 0, previouses = 0, seeks = 0;
+  final _snap = StreamController<PlaybackSnapshot>.broadcast();
+  final _pos = StreamController<Duration>.broadcast();
+
+  int plays = 0;
+  int pauses = 0;
+  int nexts = 0;
+  int previouses = 0;
+  int seeks = 0;
   Duration? lastSeek;
-  @override Stream<PlaybackSnapshot> get snapshot => snap.stream;
-  @override Stream<Duration> get position => pos.stream;
-  @override Future<void> play() async => plays++;
-  @override Future<void> pause() async {}
-  @override Future<void> seek(Duration position) async { seeks++; lastSeek = position; }
-  @override Future<void> next() async => nexts++;
-  @override Future<void> previous() async => previouses++;
-  @override Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
-  @override Future<void> dispose() async {}
+
+  bool shuffleEnabled = false;
+  double _volume = 1.0;
+  final setShuffleCalls = <bool>[];
+  final setVolumeCalls = <double>[];
+  final setMuteCalls = <bool>[];
+
+  @override
+  Stream<PlaybackSnapshot> get snapshot => _snap.stream;
+
+  @override
+  Stream<Duration> get position => _pos.stream;
+
+  @override
+  bool get isShuffleEnabled => shuffleEnabled;
+
+  @override
+  double get volume => _volume;
+
+  @override
+  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+
+  @override
+  Future<void> setShuffleEnabled(bool enabled) async {
+    shuffleEnabled = enabled;
+    setShuffleCalls.add(enabled);
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    _volume = volume;
+    setVolumeCalls.add(volume);
+  }
+
+  @override
+  Future<void> setMute(bool muted) async {
+    setMuteCalls.add(muted);
+    _volume = muted ? 0.0 : 1.0;
+  }
+
+  @override
+  Future<void> play() async => plays++;
+
+  @override
+  Future<void> pause() async => pauses++;
+
+  @override
+  Future<void> seek(Duration position) async {
+    seeks++;
+    lastSeek = position;
+  }
+
+  @override
+  Future<void> next() async => nexts++;
+
+  @override
+  Future<void> previous() async => previouses++;
+
+  @override
+  Future<void> dispose() async {
+    await _snap.close();
+    await _pos.close();
+  }
 }
 
 Widget _host(Widget child) => MaterialApp(
@@ -30,40 +90,104 @@ Widget _host(Widget child) => MaterialApp(
       home: child,
     );
 
+Track _track() => Track(
+      id: 'x',
+      source: 'cloudinary',
+      title: 'Bloom',
+      artistId: 'a',
+      artistName: 'Feint',
+      durationMs: 60000,
+      streamUrl: 'u',
+      metadata: const {},
+    );
+
 void main() {
-  testWidgets('shows current track title and play triggers controller', (tester) async {
+  testWidgets('expanded controls delegate to player view model', (tester) async {
     final audio = _FakeAudio();
     final vm = PlayerViewModel(audio);
     await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
-    final track = Track(id: 'x', source: 'cloudinary', title: 'Bloom', artistId: 'a',
-        artistName: 'Feint', durationMs: 1000, streamUrl: 'u', metadata: const {});
-    audio.snap.add(PlaybackSnapshot(currentTrack: track, status: PlaybackStatus.paused,
-        duration: const Duration(seconds: 1)));
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    audio._pos.add(Duration.zero);
     await tester.pump();
+
     expect(find.text('Bloom'), findsOneWidget);
+    expect(find.byKey(const Key('player-shuffle-button')), findsOneWidget);
+    expect(find.byKey(const Key('player-volume-slider')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('player-shuffle-button')));
+    await tester.tap(find.byKey(const Key('player-volume-mute-button')));
+    await tester.drag(find.byKey(const Key('player-volume-slider')), const Offset(100, 0));
+    await tester.tap(find.byIcon(Icons.skip_next));
+    await tester.tap(find.byIcon(Icons.skip_previous));
+    await tester.tap(find.byKey(const Key('player-eq-toggle')));
+    await tester.tap(find.byKey(const Key('player-visualizer-toggle')));
+    await tester.pump();
+
+    expect(audio.setShuffleCalls, [true]);
+    expect(audio.setMuteCalls, [true]);
+    expect(audio.setVolumeCalls, isNotEmpty);
+    expect(audio.nexts, 1);
+    expect(audio.previouses, 1);
+    expect(audio.setShuffleCalls, [true]);
+    expect(find.text('EQ / visualizer scope toggled'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.play_arrow));
     expect(audio.plays, 1);
   });
 
-  testWidgets('transport and seek controls delegate to controller', (tester) async {
+  testWidgets('toggle expand mode shows mini player and hides expanded controls', (tester) async {
     final audio = _FakeAudio();
     final vm = PlayerViewModel(audio);
     await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
-    final track = Track(id: 'x', source: 'cloudinary', title: 'Bloom', artistId: 'a',
-        artistName: 'Feint', durationMs: 60000, streamUrl: 'u', metadata: const {});
-    audio.snap.add(PlaybackSnapshot(currentTrack: track, status: PlaybackStatus.paused,
-        duration: const Duration(minutes: 1)));
-    audio.pos.add(Duration.zero);
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.skip_next));
-    await tester.tap(find.byIcon(Icons.skip_previous));
-    await tester.drag(find.byType(Slider), const Offset(120, 0));
+    expect(find.byKey(const Key('player-progress-slider')), findsOneWidget);
+    expect(find.byIcon(Icons.skip_next), findsOneWidget);
+    expect(find.byKey(const Key('player-mini-volume-mute')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('player-expand-toggle')));
     await tester.pump();
 
-    expect(audio.nexts, 1);
-    expect(audio.previouses, 1);
-    expect(audio.seeks, greaterThan(0));
-    expect(audio.lastSeek, isNotNull);
+    expect(find.byKey(const Key('player-progress-slider')), findsNothing);
+    expect(find.byIcon(Icons.skip_next), findsNothing);
+    expect(find.byKey(const Key('player-mini-volume-mute')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('player-mini-volume-mute')));
+    await tester.pump();
+    expect(audio.setMuteCalls, [true]);
+    await tester.tap(find.byIcon(Icons.play_arrow));
+    expect(audio.plays, 1);
+  });
+
+  testWidgets('shows a banner on playback error', (tester) async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(PlaybackSnapshot(currentTrack: _track(), status: PlaybackStatus.playing));
+    await tester.pump();
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.error,
+        duration: const Duration(minutes: 1),
+        error: ParseFailure('bad'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Bloom'), findsOneWidget);
+    expect(find.byType(MaterialBanner), findsOneWidget);
   });
 }
