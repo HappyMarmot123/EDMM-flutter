@@ -15,6 +15,7 @@ import 'data/services/track_api_service.dart';
 import 'domain/audio/audio_controller.dart';
 import 'domain/repositories/local_library_repository.dart';
 import 'domain/repositories/track_repository.dart';
+import 'domain/telemetry/catalog_search_telemetry.dart';
 import 'l10n/app_localizations.dart';
 import 'routing/router.dart';
 import 'ui/core/themes/theme.dart';
@@ -43,6 +44,9 @@ Future<void> main() async {
         Provider<TrackRepository>.value(value: repo),
         Provider<LocalLibraryRepository>.value(value: localLibrary),
         Provider<AudioController>.value(value: audio),
+        Provider<CatalogSearchTelemetrySink>.value(
+          value: const NoopCatalogSearchTelemetrySink(),
+        ),
       ],
       child: const EdmmApp(),
     ),

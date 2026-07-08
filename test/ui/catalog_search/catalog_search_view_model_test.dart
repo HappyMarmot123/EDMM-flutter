@@ -6,22 +6,24 @@ import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
 import 'package:edmm/domain/repositories/track_repository.dart';
 import 'package:edmm/domain/result.dart';
+import 'package:edmm/domain/telemetry/catalog_search_telemetry.dart';
 import 'package:edmm/ui/catalog_search/view_model/catalog_search_view_model.dart';
 
 Track _t(String id) => Track(
-      id: id,
-      source: 'cloudinary',
-      title: 'Song $id',
-      artistId: 'a',
-      artistName: 'A',
-      durationMs: 1,
-      streamUrl: 'u',
-      metadata: const {'resourceType': 'video'},
-    );
+  id: id,
+  source: 'cloudinary',
+  title: 'Song $id',
+  artistId: 'a',
+  artistName: 'A',
+  durationMs: 1,
+  streamUrl: 'u',
+  metadata: const {'resourceType': 'video'},
+);
 
 class _Repo implements TrackRepository {
   _Repo(this.handler);
-  Result<List<Track>> Function(CloudinaryCategory category, String query) handler;
+  Result<List<Track>> Function(CloudinaryCategory category, String query)
+  handler;
   final List<String> calls = [];
 
   @override
@@ -42,7 +44,17 @@ class _Audio implements AudioController {
   @override
   Stream<Duration> get position => Stream<Duration>.empty();
   @override
+  bool get isShuffleEnabled => false;
+  @override
+  double get volume => 1.0;
+  @override
   Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+  @override
+  Future<void> setShuffleEnabled(bool enabled) async {}
+  @override
+  Future<void> setVolume(double volume) async {}
+  @override
+  Future<void> setMute(bool muted) async {}
   @override
   Future<void> play() async {}
   @override
@@ -57,26 +69,37 @@ class _Audio implements AudioController {
   Future<void> dispose() async => snap.close();
 }
 
+class _TelemetryRecorder extends CatalogSearchTelemetrySink {
+  final events = <CatalogSearchTelemetryEvent>[];
+
+  @override
+  void emit(CatalogSearchTelemetryEvent event) => events.add(event);
+
+  void clear() => events.clear();
+}
+
 CatalogSearchViewModel _vm(
   _Repo repo,
   _Audio audio, {
   CatalogView? initialView,
   String? initialTrackId,
-}) =>
-    CatalogSearchViewModel(
-      repo,
-      audio,
-      initialView: initialView,
-      initialTrackId: initialTrackId,
-      searchDebounce: Duration.zero,
-    );
+  CatalogSearchTelemetrySink? telemetry,
+}) => CatalogSearchViewModel(
+  repo,
+  audio,
+  initialView: initialView,
+  initialTrackId: initialTrackId,
+  telemetry: telemetry,
+  searchDebounce: Duration.zero,
+);
 
 Future<void> _tick() => Future<void>.delayed(const Duration(milliseconds: 20));
 
 void main() {
   test('init loads active view and fills counts for both catalogs', () async {
     final repo = _Repo(
-      (c, q) => Ok(c == CloudinaryCategory.pop ? [_t('1'), _t('2')] : [_t('9')]),
+      (c, q) =>
+          Ok(c == CloudinaryCategory.pop ? [_t('1'), _t('2')] : [_t('9')]),
     );
     final vm = _vm(repo, _Audio());
     await vm.init();
@@ -86,15 +109,18 @@ void main() {
     expect(vm.counts[CatalogView.edm], 1);
   });
 
-  test('seed selects the view whose catalog contains the initial track', () async {
-    final repo = _Repo(
-      (c, q) => Ok(c == CloudinaryCategory.edm ? [_t('x')] : [_t('1')]),
-    );
-    final vm = _vm(repo, _Audio(), initialTrackId: 'x');
-    await vm.init();
-    expect(vm.view, CatalogView.edm);
-    expect(vm.selectedTrackId, 'x');
-  });
+  test(
+    'seed selects the view whose catalog contains the initial track',
+    () async {
+      final repo = _Repo(
+        (c, q) => Ok(c == CloudinaryCategory.edm ? [_t('x')] : [_t('1')]),
+      );
+      final vm = _vm(repo, _Audio(), initialTrackId: 'x');
+      await vm.init();
+      expect(vm.view, CatalogView.edm);
+      expect(vm.selectedTrackId, 'x');
+    },
+  );
 
   test('setView switches catalog and loads it', () async {
     final repo = _Repo(
@@ -147,7 +173,8 @@ void main() {
   test('error keeps the last successful list as stale data', () async {
     var fail = false;
     final repo = _Repo(
-      (c, q) => fail ? const Err<List<Track>>(NetworkFailure('x')) : Ok([_t('1')]),
+      (c, q) =>
+          fail ? const Err<List<Track>>(NetworkFailure('x')) : Ok([_t('1')]),
     );
     final vm = _vm(repo, _Audio());
     await vm.init();
@@ -158,6 +185,83 @@ void main() {
     expect(vm.status, CatalogStatus.error);
     expect(vm.tracks.single.id, '1'); // stale 유지
     expect(vm.error, isA<NetworkFailure>());
+  });
+
+  test('failure emits classified events and stale fallback metadata', () async {
+    var fail = false;
+    final repo = _Repo(
+      (c, q) =>
+          fail ? const Err<List<Track>>(NetworkFailure('x')) : Ok([_t('1')]),
+    );
+    final telemetry = _TelemetryRecorder();
+    final vm = _vm(repo, _Audio(), telemetry: telemetry);
+    await vm.init();
+    telemetry.clear();
+
+    fail = true;
+    await vm.retry();
+
+    final failureEvents = telemetry.events
+        .where((event) => event.name == CatalogSearchTelemetryEventNames.failed)
+        .toList();
+    final fallbackEvents = telemetry.events
+        .where(
+          (event) =>
+              event.name == CatalogSearchTelemetryEventNames.staleFallbackUsed,
+        )
+        .toList();
+
+    expect(failureEvents, hasLength(1));
+    expect(fallbackEvents, hasLength(1));
+    expect(vm.status, CatalogStatus.error);
+    expect(vm.tracks.single.id, '1'); // stale 유지
+
+    final failure = failureEvents.single.payload;
+    expect(failure['failure_category'], 'network');
+    expect(failure['failure_retryable'], isTrue);
+    expect(failure['query_length'], 0);
+    expect(failure['error_state'], 'error_with_stale');
+    expect(failure['stale_fallback'], isTrue);
+  });
+
+  test('retry request is classified and emitted separately', () async {
+    final repo = _Repo((c, q) => const Err<List<Track>>(ServerFailure(503)));
+    final telemetry = _TelemetryRecorder();
+    final vm = _vm(repo, _Audio(), telemetry: telemetry);
+    await vm.init();
+    telemetry.clear();
+
+    await vm.retry();
+
+    final requested = telemetry.events.lastWhere(
+      (event) => event.name == CatalogSearchTelemetryEventNames.requested,
+    );
+    final retry = telemetry.events.firstWhere(
+      (event) => event.name == CatalogSearchTelemetryEventNames.retryRequested,
+    );
+
+    expect(requested.payload['is_retry'], isTrue);
+    expect(requested.payload['force_refresh'], isTrue);
+    expect(retry.payload['is_retry'], isTrue);
+    expect(retry.payload['force_refresh'], isTrue);
+    expect(vm.error, isA<ServerFailure>());
+  });
+
+  test('failure state is classified as retryable by status code', () async {
+    final repo = _Repo((c, q) => const Err<List<Track>>(ServerFailure(404)));
+    final telemetry = _TelemetryRecorder();
+    final vm = _vm(repo, _Audio(), telemetry: telemetry);
+
+    await vm.init();
+
+    final failureEvents = telemetry.events
+        .where((event) => event.name == CatalogSearchTelemetryEventNames.failed)
+        .toList();
+    expect(failureEvents, hasLength(1));
+    expect(failureEvents.single.payload['failure_category'], 'server');
+    expect(failureEvents.single.payload['failure_status_code'], 404);
+    expect(failureEvents.single.payload['failure_retryable'], isFalse);
+    expect(vm.status, CatalogStatus.error);
   });
 
   test('snapshot stream updates current track id and playing flag', () async {

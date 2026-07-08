@@ -39,7 +39,17 @@ class _Audio implements AudioController {
   @override
   Stream<Duration> get position => Stream<Duration>.empty();
   @override
+  bool get isShuffleEnabled => false;
+  @override
+  double get volume => 1.0;
+  @override
   Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+  @override
+  Future<void> setShuffleEnabled(bool enabled) async {}
+  @override
+  Future<void> setVolume(double volume) async {}
+  @override
+  Future<void> setMute(bool muted) async {}
   @override
   Future<void> play() async {}
   @override

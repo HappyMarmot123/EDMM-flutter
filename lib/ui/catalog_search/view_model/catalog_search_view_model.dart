@@ -8,6 +8,7 @@ import '../../../domain/models/track.dart';
 import '../../../domain/repositories/track_repository.dart';
 import '../../../domain/result.dart';
 import '../../../domain/playback/playback_snapshot.dart';
+import '../../../domain/telemetry/catalog_search_telemetry.dart';
 
 enum CatalogView { pop, edm }
 
@@ -19,17 +20,20 @@ class CatalogSearchViewModel extends ChangeNotifier {
     this._audio, {
     CatalogView? initialView,
     String? initialTrackId,
+    CatalogSearchTelemetrySink? telemetry,
     this.searchDebounce = const Duration(milliseconds: 400),
-  })  : _initialTrackId = initialTrackId,
-        selectedTrackId = initialTrackId,
-        _view = initialView ?? CatalogView.pop,
-        _hasExplicitInitialView = initialView != null;
+  }) : _initialTrackId = initialTrackId,
+       selectedTrackId = initialTrackId,
+       _view = initialView ?? CatalogView.pop,
+       _hasExplicitInitialView = initialView != null,
+       _telemetry = telemetry ?? const NoopCatalogSearchTelemetrySink();
 
   final TrackRepository _repo;
   final AudioController _audio;
   final String? _initialTrackId;
   final bool _hasExplicitInitialView;
   final Duration searchDebounce;
+  final CatalogSearchTelemetrySink _telemetry;
 
   CatalogView _view;
   String query = '';
@@ -54,7 +58,8 @@ class CatalogSearchViewModel extends ChangeNotifier {
     _snapshotSub ??= _audio.snapshot.listen((snapshot) {
       final nextCurrentTrackId = snapshot.currentTrack?.id;
       final nextIsPlaying = snapshot.isPlaying;
-      final changed = currentTrackId != nextCurrentTrackId ||
+      final changed =
+          currentTrackId != nextCurrentTrackId ||
           isCurrentPlaying != nextIsPlaying;
       if (!changed) return;
       currentTrackId = nextCurrentTrackId;
@@ -120,9 +125,39 @@ class CatalogSearchViewModel extends ChangeNotifier {
     setQuery('');
   }
 
-  Future<void> retry() => _loadCurrent(forceRefresh: true);
+  Future<void> retry() => _loadCurrent(forceRefresh: true, isRetry: true);
 
-  Future<void> _loadCurrent({bool forceRefresh = false}) async {
+  Future<void> _loadCurrent({
+    bool forceRefresh = false,
+    bool isRetry = false,
+  }) async {
+    _telemetry.emit(
+      CatalogSearchTelemetryEvent(
+        name: CatalogSearchTelemetryEventNames.requested,
+        payload: CatalogSearchTelemetryPayload.base(
+          view: _view.name,
+          query: _appliedQuery,
+          isRetry: isRetry,
+          forceRefresh: forceRefresh,
+        ),
+      ),
+    );
+    if (isRetry) {
+      _telemetry.emit(
+        CatalogSearchTelemetryEvent(
+          name: CatalogSearchTelemetryEventNames.retryRequested,
+          payload: {
+            ...CatalogSearchTelemetryPayload.base(
+              view: _view.name,
+              query: _appliedQuery,
+              isRetry: true,
+              forceRefresh: forceRefresh,
+            ),
+          },
+        ),
+      );
+    }
+
     // 이미 보여줄 목록이 있으면(검색어 입력/탭 재로드) 스피너로 깜빡이지 않는다.
     if (tracks.isEmpty) {
       status = CatalogStatus.loading;
@@ -139,6 +174,16 @@ class CatalogSearchViewModel extends ChangeNotifier {
     switch (result) {
       case Ok(:final value):
         _lastSuccessful = {..._lastSuccessful, _view: value};
+        _telemetry.emit(
+          CatalogSearchTelemetryEvent(
+            name: CatalogSearchTelemetryEventNames.succeeded,
+            payload: CatalogSearchTelemetryPayload.successPayload(
+              view: _view.name,
+              query: _appliedQuery,
+              resultCount: value.length,
+            ),
+          ),
+        );
         tracks = value;
         error = null;
         if (value.isEmpty) {
@@ -149,9 +194,48 @@ class CatalogSearchViewModel extends ChangeNotifier {
           status = CatalogStatus.data;
         }
       case Err(error: final failure):
+        final hadStale = _lastSuccessful.containsKey(_view);
+        final staleTracks = _lastSuccessful[_view];
+
+        if (hadStale) {
+          tracks = staleTracks ?? const [];
+          _telemetry.emit(
+            CatalogSearchTelemetryEvent(
+              name: CatalogSearchTelemetryEventNames.staleFallbackUsed,
+              payload: {
+                ...CatalogSearchTelemetryPayload.base(
+                  view: _view.name,
+                  query: _appliedQuery,
+                ),
+                CatalogSearchTelemetryPayload.staleFallback: true,
+                CatalogSearchTelemetryPayload.resultCount:
+                    staleTracks?.length ?? 0,
+              },
+            ),
+          );
+        } else {
+          tracks = const [];
+        }
+
         error = failure;
-        tracks = _lastSuccessful[_view] ?? const [];
         status = CatalogStatus.error;
+        final failurePayload = CatalogSearchTelemetryPayload.failurePayload(
+          view: _view.name,
+          query: _appliedQuery,
+          failure: failure,
+          staleFallback: hadStale,
+        );
+        _telemetry.emit(
+          CatalogSearchTelemetryEvent(
+            name: CatalogSearchTelemetryEventNames.failed,
+            payload: {
+              ...failurePayload,
+              CatalogSearchTelemetryPayload.errorState: hadStale
+                  ? 'error_with_stale'
+                  : 'error_without_stale',
+            },
+          ),
+        );
     }
 
     notifyListeners();
@@ -167,7 +251,7 @@ class CatalogSearchViewModel extends ChangeNotifier {
 
 extension on CatalogView {
   CloudinaryCategory get _toCloudinaryCategory => switch (this) {
-        CatalogView.pop => CloudinaryCategory.pop,
-        CatalogView.edm => CloudinaryCategory.edm,
-      };
+    CatalogView.pop => CloudinaryCategory.pop,
+    CatalogView.edm => CloudinaryCategory.edm,
+  };
 }

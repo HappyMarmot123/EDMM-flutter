@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../domain/audio/audio_controller.dart';
 import '../domain/repositories/track_repository.dart';
+import '../domain/telemetry/catalog_search_telemetry.dart';
 import '../ui/catalog_search/view_model/catalog_search_view_model.dart';
 import '../ui/catalog_search/widgets/catalog_search_screen.dart';
 import '../ui/player/view_model/player_view_model.dart';
@@ -26,6 +27,7 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final repo = context.read<TrackRepository>();
         final audio = context.read<AudioController>();
+        final telemetry = context.read<CatalogSearchTelemetrySink>();
         final view = switch (state.uri.queryParameters['view']) {
           'edm' => CatalogView.edm,
           'pop' => CatalogView.pop,
@@ -37,6 +39,7 @@ final GoRouter appRouter = GoRouter(
             audio,
             initialView: view,
             initialTrackId: state.uri.queryParameters['track'],
+            telemetry: telemetry,
           ),
           onPlay: (queue, index) async {
             await audio.loadQueue(queue, initialIndex: index);
@@ -48,8 +51,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: Routes.player,
-      builder: (context, state) =>
-          PlayerScreen(viewModel: PlayerViewModel(context.read<AudioController>())),
+      builder: (context, state) => PlayerScreen(
+        viewModel: PlayerViewModel(context.read<AudioController>()),
+      ),
     ),
   ],
 );
