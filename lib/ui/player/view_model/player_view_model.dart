@@ -101,7 +101,7 @@ class PlayerViewModel extends ChangeNotifier {
   Future<void> toggleEqualizer() async {
     final enabled = !_equalizerEnabled;
     await _effectsController.setEqualizerEnabled(enabled);
-    _equalizerEnabled = enabled;
+    _equalizerEnabled = _effectsController.isEqualizerEnabled;
     if (_equalizerBands.isEmpty) {
       await _loadEqualizerBands(notify: false);
     }

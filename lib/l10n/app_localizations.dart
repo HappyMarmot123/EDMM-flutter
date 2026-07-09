@@ -212,11 +212,11 @@ abstract class AppLocalizations {
   /// **'Equalizer'**
   String get playerEqualizer;
 
-  /// No description provided for @playerEqualizerAndroidOnly.
+  /// No description provided for @playerEqualizerUnsupportedPlatform.
   ///
   /// In en, this message translates to:
-  /// **'Equalizer is available on Android devices only'**
-  String get playerEqualizerAndroidOnly;
+  /// **'Equalizer is available on supported Android, iOS, and macOS devices'**
+  String get playerEqualizerUnsupportedPlatform;
 
   /// No description provided for @playerEqualizerUnavailable.
   ///

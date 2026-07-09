@@ -19,7 +19,7 @@
   "playerNoTrackLoaded": "로드된 트랙이 없습니다",
   "playerDismiss": "닫기",
   "playerEqualizer": "이퀄라이저",
-  "playerEqualizerAndroidOnly": "이퀄라이저는 Android 기기에서만 사용할 수 있습니다",
+  "playerEqualizerUnsupportedPlatform": "이퀄라이저는 지원되는 Android, iOS, macOS 기기에서 사용할 수 있습니다",
   "playerEqualizerUnavailable": "이 기기에서는 이퀄라이저를 사용할 수 없습니다",
   "playbackStatusIdle": "대기",
   "playbackStatusLoading": "로딩 중",

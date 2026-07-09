@@ -317,7 +317,7 @@ class _EqualizerPanel extends StatelessWidget {
     final unavailableCopy =
         viewModel.equalizerSupport ==
             AudioEqualizerSupport.unsupportedOnPlatform
-        ? l10n.playerEqualizerAndroidOnly
+        ? l10n.playerEqualizerUnsupportedPlatform
         : l10n.playerEqualizerUnavailable;
     return SizedBox(
       key: const Key('player-eq-panel'),

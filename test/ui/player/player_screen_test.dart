@@ -216,31 +216,34 @@ void main() {
     expect(audio.setEqualizerBandGainCalls, isNotEmpty);
   });
 
-  testWidgets('shows Android-only equalizer copy on unsupported platforms', (
-    tester,
-  ) async {
-    final audio = _FakeAudio()
-      ..support = AudioEqualizerSupport.unsupportedOnPlatform
-      ..bands = const [];
-    final vm = PlayerViewModel(audio);
-    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
-    audio._snap.add(
-      PlaybackSnapshot(
-        currentTrack: _track(),
-        status: PlaybackStatus.paused,
-        duration: const Duration(minutes: 1),
-      ),
-    );
-    await tester.pump();
+  testWidgets(
+    'shows platform-neutral equalizer copy on unsupported platforms',
+    (tester) async {
+      final audio = _FakeAudio()
+        ..support = AudioEqualizerSupport.unsupportedOnPlatform
+        ..bands = const [];
+      final vm = PlayerViewModel(audio);
+      await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+      audio._snap.add(
+        PlaybackSnapshot(
+          currentTrack: _track(),
+          status: PlaybackStatus.paused,
+          duration: const Duration(minutes: 1),
+        ),
+      );
+      await tester.pump();
 
-    await tester.tap(find.byKey(const Key('player-eq-toggle')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('player-eq-toggle')));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Equalizer is available on Android devices only'),
-      findsOneWidget,
-    );
-  });
+      expect(
+        find.text(
+          'Equalizer is available on supported Android, iOS, and macOS devices',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('uses localized player copy for empty and error states', (
     tester,

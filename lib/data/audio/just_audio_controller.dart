@@ -1,5 +1,6 @@
 // lib/data/audio/just_audio_controller.dart
 import 'dart:async';
+import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -26,9 +27,13 @@ class JustAudioController extends BaseAudioHandler
     _subs.add(_player.playerStateStream.listen((_) => _emitSnapshot()));
   }
 
-  final AndroidEqualizer _equalizer = AndroidEqualizer();
+  final AndroidEqualizer _androidEqualizer = AndroidEqualizer();
+  final DarwinEqualizer _darwinEqualizer = DarwinEqualizer();
   late final AudioPlayer _player = AudioPlayer(
-    audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer]),
+    audioPipeline: AudioPipeline(
+      androidAudioEffects: [_androidEqualizer],
+      darwinAudioEffects: [_darwinEqualizer],
+    ),
   );
   final _snapshotController = StreamController<PlaybackSnapshot>.broadcast();
   final _positionController = StreamController<Duration>.broadcast();
@@ -57,19 +62,53 @@ class JustAudioController extends BaseAudioHandler
   @override
   bool get isEqualizerEnabled => _equalizerEnabled;
 
-  bool get _supportsAndroidEqualizer =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get _supportsAndroidEqualizer => !kIsWeb && Platform.isAndroid;
+
+  bool get _supportsDarwinEqualizer =>
+      !kIsWeb && (Platform.isIOS || Platform.isMacOS);
+
+  bool get _supportsEqualizer =>
+      _supportsAndroidEqualizer || _supportsDarwinEqualizer;
 
   @override
-  AudioEqualizerSupport get equalizerSupport => _supportsAndroidEqualizer
+  AudioEqualizerSupport get equalizerSupport => _supportsEqualizer
       ? AudioEqualizerSupport.supported
       : AudioEqualizerSupport.unsupportedOnPlatform;
 
   @override
   Future<List<AudioEqualizerBand>> getEqualizerBands() async {
-    if (!_supportsAndroidEqualizer) return const [];
+    if (_supportsAndroidEqualizer) {
+      return _getAndroidEqualizerBands();
+    }
+    if (_supportsDarwinEqualizer) {
+      return _getDarwinEqualizerBands();
+    }
+    return const [];
+  }
+
+  Future<List<AudioEqualizerBand>> _getAndroidEqualizerBands() async {
     try {
-      final parameters = await _equalizer.parameters.timeout(
+      final parameters = await _androidEqualizer.parameters.timeout(
+        const Duration(seconds: 1),
+      );
+      return [
+        for (final band in parameters.bands)
+          AudioEqualizerBand(
+            index: band.index,
+            label: _formatFrequency(band.centerFrequency),
+            minGain: parameters.minDecibels,
+            maxGain: parameters.maxDecibels,
+            gain: band.gain,
+          ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<AudioEqualizerBand>> _getDarwinEqualizerBands() async {
+    try {
+      final parameters = await _darwinEqualizer.parameters.timeout(
         const Duration(seconds: 1),
       );
       return [
@@ -89,16 +128,49 @@ class JustAudioController extends BaseAudioHandler
 
   @override
   Future<void> setEqualizerEnabled(bool enabled) async {
-    _equalizerEnabled = enabled;
-    if (!_supportsAndroidEqualizer) return;
-    await _guard(() => _equalizer.setEnabled(enabled));
+    if (_supportsAndroidEqualizer) {
+      await _guard(() async {
+        await _androidEqualizer.setEnabled(enabled);
+        _equalizerEnabled = enabled;
+      });
+      return;
+    }
+    if (_supportsDarwinEqualizer) {
+      await _guard(() async {
+        await _darwinEqualizer.setEnabled(enabled);
+        _equalizerEnabled = enabled;
+      });
+    }
   }
 
   @override
   Future<void> setEqualizerBandGain(int index, double gain) async {
-    if (!_supportsAndroidEqualizer) return;
+    if (_supportsAndroidEqualizer) {
+      await _setAndroidEqualizerBandGain(index, gain);
+      return;
+    }
+    if (_supportsDarwinEqualizer) {
+      await _setDarwinEqualizerBandGain(index, gain);
+    }
+  }
+
+  Future<void> _setAndroidEqualizerBandGain(int index, double gain) async {
     await _guard(() async {
-      final parameters = await _equalizer.parameters.timeout(
+      final parameters = await _androidEqualizer.parameters.timeout(
+        const Duration(seconds: 1),
+      );
+      for (final band in parameters.bands) {
+        if (band.index == index) {
+          await band.setGain(gain);
+          return;
+        }
+      }
+    });
+  }
+
+  Future<void> _setDarwinEqualizerBandGain(int index, double gain) async {
+    await _guard(() async {
+      final parameters = await _darwinEqualizer.parameters.timeout(
         const Duration(seconds: 1),
       );
       for (final band in parameters.bands) {
