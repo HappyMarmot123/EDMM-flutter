@@ -1689,6 +1689,123 @@ void runTests() {
     }
   });
 
+  test('DarwinEqualizer', () async {
+    final equalizer = DarwinEqualizer();
+    final player = AudioPlayer(
+      audioPipeline: AudioPipeline(darwinAudioEffects: [equalizer]),
+    );
+    expect(equalizer.enabled, equals(false));
+    expect(await equalizer.enabledStream.first, equals(false));
+    await player.setUrl('https://foo.foo/foo.mp3');
+    final platformPlayer = mock.mostRecentPlayer!;
+    expect(
+        platformPlayer.darwinAudioEffects.map((effect) => effect.toMap()),
+        equals([
+          {
+            'type': 'DarwinEqualizer',
+            'enabled': false,
+            'parameters': null,
+          },
+        ]));
+    expect(equalizer.enabled, equals(false));
+    expect(await equalizer.enabledStream.first, equals(false));
+    await equalizer.setEnabled(true);
+    expect(equalizer.enabled, equals(true));
+    expect(await equalizer.enabledStream.first, equals(true));
+    expect(platformPlayer.audioEffectSetEnabledRequests.last.toMap(), {
+      'type': 'DarwinEqualizer',
+      'enabled': true,
+    });
+    final parameters = await equalizer.parameters;
+    expect(parameters.minDecibels, equals(-12.0));
+    expect(parameters.maxDecibels, equals(12.0));
+    final bands = parameters.bands;
+    expect(bands.length, equals(5));
+    for (var i = 0; i < 5; i++) {
+      final band = bands[i];
+      expect(band.index, equals(i));
+      expect(band.lowerFrequency, equals(i * 1000));
+      expect(band.upperFrequency, equals((i + 1) * 1000));
+      expect(band.centerFrequency, equals((i + 0.5) * 1000));
+      expect(band.gain, equals(i * 0.1));
+      expect(await band.gainStream.first, equals(i * 0.1));
+      final newGain = i * 0.2;
+      await band.setGain(newGain);
+      expect(band.gain, equals(newGain));
+      expect(await band.gainStream.first, equals(newGain));
+      expect(platformPlayer.darwinEqualizerBandSetGainRequests.last.toMap(), {
+        'bandIndex': i,
+        'gain': newGain,
+      });
+    }
+    await player.stop();
+    await player.load();
+    final reloadedPlatformPlayer = mock.mostRecentPlayer!;
+    expect(
+        reloadedPlatformPlayer.darwinAudioEffects
+            .map((effect) => effect.toMap()),
+        equals([
+          {
+            'type': 'DarwinEqualizer',
+            'enabled': true,
+            'parameters': null,
+          },
+        ]));
+    expect(equalizer.enabled, equals(true));
+    expect(parameters.minDecibels, equals(-12.0));
+    expect(parameters.maxDecibels, equals(12.0));
+    expect(bands.length, equals(5));
+    expect(reloadedPlatformPlayer.darwinEqualizerBandSetGainRequests.length,
+        equals(5));
+    for (var i = 0; i < 5; i++) {
+      final band = bands[i];
+      expect(band.index, equals(i));
+      expect(band.lowerFrequency, equals(i * 1000));
+      expect(band.upperFrequency, equals((i + 1) * 1000));
+      expect(band.centerFrequency, equals((i + 0.5) * 1000));
+      expect(band.gain, equals(i * 0.2));
+      expect(
+          reloadedPlatformPlayer.darwinEqualizerBandSetGainRequests[i].toMap(),
+          {
+            'bandIndex': i,
+            'gain': i * 0.2,
+          });
+    }
+  });
+
+  for (final error in <Object>[
+    MissingPluginException('audioEffectSetEnabled'),
+    UnimplementedError('audioEffectSetEnabled'),
+  ]) {
+    test(
+        'DarwinEqualizer keeps enabled state when platform throws '
+        '${error.runtimeType}', () async {
+      final equalizer = DarwinEqualizer();
+      final player = AudioPlayer(
+        audioPipeline: AudioPipeline(darwinAudioEffects: [equalizer]),
+      );
+      await player.setUrl('https://foo.foo/foo.mp3');
+      final platformPlayer = mock.mostRecentPlayer!;
+      platformPlayer.audioEffectSetEnabledError = error;
+
+      await equalizer.setEnabled(true);
+      expect(equalizer.enabled, equals(true));
+      expect(await equalizer.enabledStream.first, equals(true));
+      expect(platformPlayer.audioEffectSetEnabledRequests.last.toMap(), {
+        'type': 'DarwinEqualizer',
+        'enabled': true,
+      });
+
+      await equalizer.setEnabled(false);
+      expect(equalizer.enabled, equals(false));
+      expect(await equalizer.enabledStream.first, equals(false));
+      expect(platformPlayer.audioEffectSetEnabledRequests.last.toMap(), {
+        'type': 'DarwinEqualizer',
+        'enabled': false,
+      });
+    });
+  }
+
   test('asyncMessages', () async {
     final player = AudioPlayer();
     await player.setUrl('https://foo.foo/foo.mp3');
@@ -1792,6 +1909,11 @@ class MockAudioPlayer extends AudioPlayerPlatform {
   final eventController = StreamController<PlaybackEventMessage>();
   final dataMessageController = StreamController<PlayerDataMessage>();
   final AudioLoadConfigurationMessage? audioLoadConfiguration;
+  final List<AudioEffectMessage> darwinAudioEffects;
+  final audioEffectSetEnabledRequests = <AudioEffectSetEnabledRequest>[];
+  final darwinEqualizerBandSetGainRequests =
+      <DarwinEqualizerBandSetGainRequest>[];
+  Object? audioEffectSetEnabledError;
   AudioSourceMessage? _audioSource;
   ProcessingStateMessage _processingState = ProcessingStateMessage.idle;
   Duration _updatePosition = Duration.zero;
@@ -1811,6 +1933,7 @@ class MockAudioPlayer extends AudioPlayerPlatform {
 
   MockAudioPlayer(InitRequest request)
       : audioLoadConfiguration = request.audioLoadConfiguration,
+        darwinAudioEffects = request.darwinAudioEffects,
         super(request.id);
 
   @override
@@ -2109,6 +2232,11 @@ class MockAudioPlayer extends AudioPlayerPlatform {
   @override
   Future<AudioEffectSetEnabledResponse> audioEffectSetEnabled(
       AudioEffectSetEnabledRequest request) async {
+    audioEffectSetEnabledRequests.add(request);
+    final error = audioEffectSetEnabledError;
+    if (error != null) {
+      throw error;
+    }
     return AudioEffectSetEnabledResponse();
   }
 
@@ -2144,6 +2272,34 @@ class MockAudioPlayer extends AudioPlayerPlatform {
   Future<AndroidEqualizerBandSetGainResponse> androidEqualizerBandSetGain(
       AndroidEqualizerBandSetGainRequest request) async {
     return AndroidEqualizerBandSetGainResponse();
+  }
+
+  @override
+  Future<DarwinEqualizerGetParametersResponse> darwinEqualizerGetParameters(
+      DarwinEqualizerGetParametersRequest request) async {
+    return DarwinEqualizerGetParametersResponse(
+      parameters: DarwinEqualizerParametersMessage(
+        minDecibels: -12.0,
+        maxDecibels: 12.0,
+        bands: [
+          for (var i = 0; i < 5; i++)
+            DarwinEqualizerBandMessage(
+              index: i,
+              lowerFrequency: i * 1000,
+              upperFrequency: (i + 1) * 1000,
+              centerFrequency: (i + 0.5) * 1000,
+              gain: i * 0.1,
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<DarwinEqualizerBandSetGainResponse> darwinEqualizerBandSetGain(
+      DarwinEqualizerBandSetGainRequest request) async {
+    darwinEqualizerBandSetGainRequests.add(request);
+    return DarwinEqualizerBandSetGainResponse();
   }
 }
 

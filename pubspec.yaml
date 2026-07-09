@@ -51,6 +51,8 @@ dependencies:
 dependency_overrides:
   just_audio:
     path: packages/just_audio_edmm/just_audio
+  just_audio_platform_interface:
+    path: packages/just_audio_edmm/just_audio_platform_interface
 
 dev_dependencies:
   flutter_test:
