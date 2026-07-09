@@ -48,6 +48,10 @@ dependencies:
   shared_preferences: ^2.3.5
   sentry_flutter: ^8.14.2
 
+dependency_overrides:
+  just_audio:
+    path: packages/just_audio_edmm/just_audio
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
