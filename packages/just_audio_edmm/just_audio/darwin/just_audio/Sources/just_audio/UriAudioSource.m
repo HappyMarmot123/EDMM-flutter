@@ -1,8 +1,10 @@
 #import "./include/just_audio/UriAudioSource.h"
+#import "./include/just_audio/DarwinEqualizer.h"
 #import "./include/just_audio/IndexedAudioSource.h"
 #import "./include/just_audio/IndexedPlayerItem.h"
 #import "./include/just_audio/LoadControl.h"
 #import <AVFoundation/AVFoundation.h>
+#import <MediaToolbox/MediaToolbox.h>
 
 @implementation UriAudioSource {
     NSString *_uri;
@@ -12,15 +14,17 @@
     LoadControl *_loadControl;
     NSMutableDictionary *_headers;
     NSDictionary *_options;
+    DarwinEqualizer *_equalizer;
 }
 
-- (instancetype)initWithId:(NSString *)sid uri:(NSString *)uri loadControl:(LoadControl *)loadControl headers:(NSDictionary *)headers options:(NSDictionary *)options {
+- (instancetype)initWithId:(NSString *)sid uri:(NSString *)uri loadControl:(LoadControl *)loadControl headers:(NSDictionary *)headers options:(NSDictionary *)options equalizer:(DarwinEqualizer *)equalizer {
     self = [super initWithId:sid];
     NSAssert(self, @"super init cannot be nil");
     _uri = uri;
     _loadControl = loadControl;
     _headers = headers != (id)[NSNull null] ? [headers mutableCopy] : nil;
     _options = options;
+    _equalizer = equalizer;
     _playerItem = [self createPlayerItem:uri];
     _playerItem2 = nil;
     return self;
@@ -89,8 +93,33 @@
             item.preferredPeakBitRate = [_loadControl.preferredPeakBitRate doubleValue];
         }
     }
+    [self attachTapToPlayerItem:item];
 
     return item;
+}
+
+- (void)attachTapToPlayerItem:(IndexedPlayerItem *)item {
+    if (!_equalizer) return;
+
+    NSArray<AVAssetTrack *> *audioTracks = [item.asset tracksWithMediaType:AVMediaTypeAudio];
+    if (audioTracks.count == 0) return;
+
+    NSMutableArray<AVMutableAudioMixInputParameters *> *inputParameters = [NSMutableArray arrayWithCapacity:audioTracks.count];
+    for (AVAssetTrack *audioTrack in audioTracks) {
+        MTAudioProcessingTapRef tap = [_equalizer newTapProcessor];
+        if (!tap) continue;
+
+        AVMutableAudioMixInputParameters *trackInputParameters = [AVMutableAudioMixInputParameters audioMixInputParametersWithTrack:audioTrack];
+        trackInputParameters.audioTapProcessor = tap;
+        [inputParameters addObject:trackInputParameters];
+        CFRelease(tap);
+    }
+    if (inputParameters.count == 0) return;
+
+    AVMutableAudioMix *audioMix = [AVMutableAudioMix audioMix];
+    NSArray<AVAudioMixInputParameters *> *audioMixInputParameters = [inputParameters copy];
+    audioMix.inputParameters = audioMixInputParameters;
+    item.audioMix = audioMix;
 }
 
 // Not used. XXX: Remove?

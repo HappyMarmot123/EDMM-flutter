@@ -1,4 +1,5 @@
 #import "IndexedAudioSource.h"
+#import "DarwinEqualizer.h"
 #import "LoadControl.h"
 #import <AVFoundation/AVFoundation.h>
 #if TARGET_OS_OSX
@@ -11,6 +12,6 @@
 
 @property (readonly, nonatomic) NSString *uri;
 
-- (instancetype)initWithId:(NSString *)sid uri:(NSString *)uri loadControl:(LoadControl *)loadControl headers:(NSDictionary *)headers options:(NSDictionary *)options;
+- (instancetype)initWithId:(NSString *)sid uri:(NSString *)uri loadControl:(LoadControl *)loadControl headers:(NSDictionary *)headers options:(NSDictionary *)options equalizer:(DarwinEqualizer *)equalizer;
 
 @end

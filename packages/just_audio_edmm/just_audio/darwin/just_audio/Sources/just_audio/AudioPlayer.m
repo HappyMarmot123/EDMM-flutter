@@ -4,6 +4,7 @@
 #import "./include/just_audio/IndexedAudioSource.h"
 #import "./include/just_audio/LoadControl.h"
 #import "./include/just_audio/UriAudioSource.h"
+#import "./include/just_audio/DarwinEqualizer.h"
 #import "./include/just_audio/ConcatenatingAudioSource.h"
 #import "./include/just_audio/LoopingAudioSource.h"
 #import "./include/just_audio/ClippingAudioSource.h"
@@ -16,6 +17,10 @@
 
 // TODO: Check for and report invalid state transitions.
 // TODO: Apply Apple's guidance on seeking: https://developer.apple.com/library/archive/qa/qa1820/_index.html
+@interface AudioPlayer ()
+- (void)initializeDarwinAudioEffects:(NSArray *)darwinAudioEffects;
+@end
+
 @implementation AudioPlayer {
     NSObject<FlutterPluginRegistrar>* _registrar;
     FlutterMethodChannel *_methodChannel;
@@ -44,6 +49,7 @@
     BOOL _automaticallyWaitsToMinimizeStalling;
     BOOL _allowsExternalPlayback;
     LoadControl *_loadControl;
+    DarwinEqualizer *_darwinEqualizer;
     BOOL _useLazyPreparation;
     BOOL _playing;
     float _speed;
@@ -55,7 +61,7 @@
     NSString *_errorMessage;
 }
 
-- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration useLazyPreparation:(BOOL)useLazyPreparation {
+- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration darwinAudioEffects:(NSArray *)darwinAudioEffects useLazyPreparation:(BOOL)useLazyPreparation {
     self = [super init];
     NSAssert(self, @"super init cannot be nil");
     _registrar = registrar;
@@ -92,6 +98,8 @@
     _automaticallyWaitsToMinimizeStalling = YES;
     _allowsExternalPlayback = NO;
     _loadControl = nil;
+    _darwinEqualizer = [[DarwinEqualizer alloc] init];
+    [self initializeDarwinAudioEffects:darwinAudioEffects];
     if (loadConfiguration != (id)[NSNull null]) {
         NSDictionary *map = loadConfiguration[@"darwinLoadControl"];
         if (map != (id)[NSNull null]) {
@@ -120,6 +128,24 @@
         [weakSelf handleMethodCall:call result:result];
     }];
     return self;
+}
+
+- (void)initializeDarwinAudioEffects:(NSArray *)darwinAudioEffects {
+    if (darwinAudioEffects == (id)[NSNull null] || ![darwinAudioEffects isKindOfClass:[NSArray class]]) {
+        return;
+    }
+    for (id rawEffect in darwinAudioEffects) {
+        if (![rawEffect isKindOfClass:[NSDictionary class]]) continue;
+        NSDictionary *effect = (NSDictionary *)rawEffect;
+        id type = effect[@"type"];
+        id enabled = effect[@"enabled"];
+        if ([type isKindOfClass:[NSString class]] &&
+                [(NSString *)type isEqualToString:@"DarwinEqualizer"] &&
+                [enabled isKindOfClass:[NSNumber class]] &&
+                [(NSNumber *)enabled boolValue]) {
+            [_darwinEqualizer setEnabled:YES];
+        }
+    }
 }
 
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
@@ -180,6 +206,12 @@
             result(@{});
         } else if ([@"setAndroidAudioAttributes" isEqualToString:call.method]) {
             result(@{});
+        } else if ([@"audioEffectSetEnabled" isEqualToString:call.method]) {
+            [self audioEffectSetEnabled:request[@"type"] enabled:request[@"enabled"] result:result];
+        } else if ([@"darwinEqualizerGetParameters" isEqualToString:call.method]) {
+            [self darwinEqualizerGetParameters:result];
+        } else if ([@"darwinEqualizerBandSetGain" isEqualToString:call.method]) {
+            [self darwinEqualizerBandSetGain:[request[@"bandIndex"] intValue] gain:[request[@"gain"] doubleValue] result:result];
         } else {
             result(FlutterMethodNotImplemented);
         }
@@ -471,11 +503,11 @@
 - (AudioSource *)decodeAudioSource:(NSDictionary *)data {
     NSString *type = data[@"type"];
     if ([@"progressive" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
+        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"] equalizer:_darwinEqualizer];
     } else if ([@"dash" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
+        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"] equalizer:_darwinEqualizer];
     } else if ([@"hls" isEqualToString:type]) {
-        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"]];
+        return [[UriAudioSource alloc] initWithId:data[@"id"] uri:data[@"uri"] loadControl:_loadControl headers:data[@"headers"] options:data[@"options"] equalizer:_darwinEqualizer];
     } else if ([@"concatenating" isEqualToString:type]) {
         return [[ConcatenatingAudioSource alloc] initWithId:data[@"id"]
                                                audioSources:[self decodeAudioSources:data[@"children"]]
@@ -1203,6 +1235,45 @@
             _player.allowsExternalPlayback = allowsExternalPlayback;
         }
     }
+}
+
+- (void)audioEffectSetEnabled:(id)type enabled:(id)enabled result:(FlutterResult)result {
+    if (![type isKindOfClass:[NSString class]]) {
+        result([FlutterError errorWithCode:@"invalidAudioEffectType"
+                                   message:@"audioEffectSetEnabled requires a string audio effect type"
+                                   details:nil]);
+        return;
+    }
+    if (![(NSString *)type isEqualToString:@"DarwinEqualizer"]) {
+        result([FlutterError errorWithCode:@"unsupportedAudioEffect"
+                                   message:[NSString stringWithFormat:@"Unsupported audio effect type: %@", type]
+                                   details:nil]);
+        return;
+    }
+    if (![enabled isKindOfClass:[NSNumber class]]) {
+        result([FlutterError errorWithCode:@"invalidAudioEffectEnabled"
+                                   message:@"audioEffectSetEnabled requires a boolean enabled value"
+                                   details:nil]);
+        return;
+    }
+    [_darwinEqualizer setEnabled:[(NSNumber *)enabled boolValue]];
+    result(@{});
+}
+
+- (void)darwinEqualizerGetParameters:(FlutterResult)result {
+    result(@{
+        @"parameters": [_darwinEqualizer parameters],
+    });
+}
+
+- (void)darwinEqualizerBandSetGain:(int)bandIndex gain:(double)gain result:(FlutterResult)result {
+    if (![_darwinEqualizer setGain:gain forBandIndex:bandIndex]) {
+        result([FlutterError errorWithCode:@"invalidEqualizerBand"
+                                   message:[NSString stringWithFormat:@"Invalid Darwin equalizer band index: %d", bandIndex]
+                                   details:nil]);
+        return;
+    }
+    result(@{});
 }
 
 - (void)seek:(CMTime)position index:(NSNumber *)newIndex completionHandler:(void (^)(BOOL))completionHandler {
