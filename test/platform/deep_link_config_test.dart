@@ -69,4 +69,15 @@ void main() {
     expect(script, contains('artwork'));
     expect(script, contains('interruption'));
   });
+
+  test('iOS EQ PoC script captures macOS-only verification gates', () {
+    final script = File('tool/ios_eq_poc.sh').readAsStringSync();
+
+    expect(script, contains('flutter build ios --no-codesign'));
+    expect(script, contains('xcrun simctl'));
+    expect(script, contains('edmm:///track/'));
+    expect(script, contains('background playback'));
+    expect(script, contains('interruption'));
+    expect(script, contains('AVAudioUnitEQ'));
+  });
 }
