@@ -56,6 +56,8 @@ class PlayerViewModel extends ChangeNotifier {
   double get volume => _volume;
   bool get isShuffleEnabled => _shuffleEnabled;
   bool get isEqualizerEnabled => _equalizerEnabled;
+  AudioEqualizerSupport get equalizerSupport =>
+      _effectsController.equalizerSupport;
   List<AudioEqualizerBand> get equalizerBands => _equalizerBands;
 
   Future<void> playPause() =>

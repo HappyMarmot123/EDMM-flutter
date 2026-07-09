@@ -66,6 +66,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get playerEqualizer => '이퀄라이저';
 
   @override
+  String get playerEqualizerAndroidOnly => '이퀄라이저는 Android 기기에서만 사용할 수 있습니다';
+
+  @override
   String get playerEqualizerUnavailable => '이 기기에서는 이퀄라이저를 사용할 수 없습니다';
 
   @override

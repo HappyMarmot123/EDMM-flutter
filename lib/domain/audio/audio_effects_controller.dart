@@ -22,8 +22,11 @@ class AudioEqualizerBand {
   );
 }
 
+enum AudioEqualizerSupport { supported, unsupportedOnPlatform, unavailable }
+
 abstract class AudioEffectsController {
   bool get isEqualizerEnabled;
+  AudioEqualizerSupport get equalizerSupport;
   Future<List<AudioEqualizerBand>> getEqualizerBands();
   Future<void> setEqualizerEnabled(bool enabled);
   Future<void> setEqualizerBandGain(int index, double gain);
@@ -34,6 +37,10 @@ class NoopAudioEffectsController implements AudioEffectsController {
 
   @override
   bool get isEqualizerEnabled => false;
+
+  @override
+  AudioEqualizerSupport get equalizerSupport =>
+      AudioEqualizerSupport.unavailable;
 
   @override
   Future<List<AudioEqualizerBand>> getEqualizerBands() async => const [];

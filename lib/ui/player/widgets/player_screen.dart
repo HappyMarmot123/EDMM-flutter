@@ -314,13 +314,18 @@ class _EqualizerPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bands = viewModel.equalizerBands;
+    final unavailableCopy =
+        viewModel.equalizerSupport ==
+            AudioEqualizerSupport.unsupportedOnPlatform
+        ? l10n.playerEqualizerAndroidOnly
+        : l10n.playerEqualizerUnavailable;
     return SizedBox(
       key: const Key('player-eq-panel'),
       height: 116,
       child: bands.isEmpty
           ? Center(
               child: Text(
-                l10n.playerEqualizerUnavailable,
+                unavailableCopy,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             )

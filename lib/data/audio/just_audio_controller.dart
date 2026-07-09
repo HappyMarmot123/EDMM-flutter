@@ -61,6 +61,11 @@ class JustAudioController extends BaseAudioHandler
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   @override
+  AudioEqualizerSupport get equalizerSupport => _supportsAndroidEqualizer
+      ? AudioEqualizerSupport.supported
+      : AudioEqualizerSupport.unsupportedOnPlatform;
+
+  @override
   Future<List<AudioEqualizerBand>> getEqualizerBands() async {
     if (!_supportsAndroidEqualizer) return const [];
     try {

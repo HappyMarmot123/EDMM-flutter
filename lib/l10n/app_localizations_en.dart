@@ -66,6 +66,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerEqualizer => 'Equalizer';
 
   @override
+  String get playerEqualizerAndroidOnly =>
+      'Equalizer is available on Android devices only';
+
+  @override
   String get playerEqualizerUnavailable =>
       'Equalizer is unavailable on this device';
 

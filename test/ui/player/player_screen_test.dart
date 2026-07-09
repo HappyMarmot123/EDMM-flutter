@@ -27,6 +27,7 @@ class _FakeAudio implements AudioController, AudioEffectsController {
   final setVolumeCalls = <double>[];
   final setMuteCalls = <bool>[];
   bool equalizerEnabled = false;
+  AudioEqualizerSupport support = AudioEqualizerSupport.supported;
   final setEqualizerCalls = <bool>[];
   final setEqualizerBandGainCalls = <({int index, double gain})>[];
   List<AudioEqualizerBand> bands = const [
@@ -81,6 +82,9 @@ class _FakeAudio implements AudioController, AudioEffectsController {
 
   @override
   bool get isEqualizerEnabled => equalizerEnabled;
+
+  @override
+  AudioEqualizerSupport get equalizerSupport => support;
 
   @override
   Future<List<AudioEqualizerBand>> getEqualizerBands() async => bands;
@@ -210,6 +214,32 @@ void main() {
     await tester.pump();
 
     expect(audio.setEqualizerBandGainCalls, isNotEmpty);
+  });
+
+  testWidgets('shows Android-only equalizer copy on unsupported platforms', (
+    tester,
+  ) async {
+    final audio = _FakeAudio()
+      ..support = AudioEqualizerSupport.unsupportedOnPlatform
+      ..bands = const [];
+    final vm = PlayerViewModel(audio);
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('player-eq-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Equalizer is available on Android devices only'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('uses localized player copy for empty and error states', (

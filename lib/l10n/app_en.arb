@@ -19,6 +19,7 @@
   "playerNoTrackLoaded": "No track loaded",
   "playerDismiss": "Dismiss",
   "playerEqualizer": "Equalizer",
+  "playerEqualizerAndroidOnly": "Equalizer is available on Android devices only",
   "playerEqualizerUnavailable": "Equalizer is unavailable on this device",
   "playbackStatusIdle": "Idle",
   "playbackStatusLoading": "Loading",
