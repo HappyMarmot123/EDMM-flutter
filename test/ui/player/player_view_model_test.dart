@@ -240,4 +240,74 @@ void main() {
     expect(await localLibrary.getRecentTrackIds(), ['x']);
     expect((await localLibrary.getCachedTrack('x'))?.id, 'x');
   });
+
+  test('dismisses error banner without dropping snapshot error', () async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.error,
+        error: ServerFailure(503),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.hasError, isTrue);
+    expect(vm.shouldShowErrorBanner, isTrue);
+
+    vm.dismissError();
+    expect(vm.hasError, isTrue);
+    expect(vm.shouldShowErrorBanner, isFalse);
+  });
+
+  test('clears dismissed error state on non-error snapshots', () async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.error,
+        error: ParseFailure('bad'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    vm.dismissError();
+    expect(vm.shouldShowErrorBanner, isFalse);
+
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: Duration(seconds: 1),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(vm.shouldShowErrorBanner, isFalse);
+    expect(vm.hasError, isFalse);
+  });
+
+  test('tracks error token changes across different failures', () async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    final firstError = PlaybackSnapshot(
+      currentTrack: _track(),
+      status: PlaybackStatus.error,
+      error: NetworkFailure('offline'),
+    );
+    final secondError = PlaybackSnapshot(
+      currentTrack: _track(),
+      status: PlaybackStatus.error,
+      error: ServerFailure(503),
+    );
+    audio._snap.add(firstError);
+    await Future<void>.delayed(Duration.zero);
+    final firstToken = vm.latestErrorToken;
+
+    vm.dismissError();
+    audio._snap.add(secondError);
+    await Future<void>.delayed(Duration.zero);
+    expect(vm.latestErrorToken, isNot(equals(firstToken)));
+    expect(vm.shouldShowErrorBanner, isTrue);
+  });
 }

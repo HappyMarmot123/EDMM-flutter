@@ -6,6 +6,7 @@ import '../../../data/repositories/noop_local_library_repository.dart';
 import '../../../domain/logic/playback_persistence.dart';
 import '../../../domain/playback/playback_snapshot.dart';
 import '../../../domain/repositories/local_library_repository.dart';
+import '../../../domain/result.dart';
 import '../../../domain/telemetry/playback_telemetry.dart';
 
 class PlayerViewModel extends ChangeNotifier {
@@ -24,6 +25,10 @@ class PlayerViewModel extends ChangeNotifier {
                : const NoopAudioEffectsController()) {
     _sub = _audio.snapshot.listen((s) {
       snapshot = s;
+      _latestErrorToken = _errorToken(s.error);
+      if (s.status != PlaybackStatus.error) {
+        _dismissedErrorToken = null;
+      }
       _emitPlaybackErrorTelemetry(s);
       _persistPlayingTrack(s);
       notifyListeners();
@@ -47,6 +52,8 @@ class PlayerViewModel extends ChangeNotifier {
   bool _shuffleEnabled = false;
   String? _lastPersistedTrackId;
   bool _equalizerEnabled = false;
+  String? _latestErrorToken;
+  String? _dismissedErrorToken;
   List<AudioEqualizerBand> _equalizerBands = const [];
 
   PlaybackSnapshot snapshot = const PlaybackSnapshot();
@@ -56,9 +63,14 @@ class PlayerViewModel extends ChangeNotifier {
   double get volume => _volume;
   bool get isShuffleEnabled => _shuffleEnabled;
   bool get isEqualizerEnabled => _equalizerEnabled;
+  bool get shouldShowErrorBanner =>
+      snapshot.error != null &&
+      snapshot.status == PlaybackStatus.error &&
+      _latestErrorToken != _dismissedErrorToken;
   AudioEqualizerSupport get equalizerSupport =>
       _effectsController.equalizerSupport;
   List<AudioEqualizerBand> get equalizerBands => _equalizerBands;
+  String? get latestErrorToken => _latestErrorToken;
 
   Future<void> playPause() =>
       snapshot.isPlaying ? _audio.pause() : _audio.play();
@@ -118,6 +130,10 @@ class PlayerViewModel extends ChangeNotifier {
   }
 
   bool get hasError => snapshot.error != null;
+  void dismissError() {
+    _dismissedErrorToken = _latestErrorToken;
+    notifyListeners();
+  }
 
   void _emitPlaybackErrorTelemetry(PlaybackSnapshot snapshot) {
     if (snapshot.error == null) return;
@@ -141,5 +157,14 @@ class PlayerViewModel extends ChangeNotifier {
   void dispose() {
     _sub.cancel();
     super.dispose();
+  }
+
+  String? _errorToken(Failure? failure) {
+    if (failure == null) return null;
+    return switch (failure) {
+      NetworkFailure(:final cause) => 'network:$cause',
+      ServerFailure(:final statusCode) => 'server:$statusCode',
+      ParseFailure(:final cause) => 'parse:$cause',
+    };
   }
 }

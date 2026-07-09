@@ -19,6 +19,7 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   bool _expanded = true;
   bool _visualizerEnabled = false;
+  String? _lastErrorToastToken;
 
   @override
   void dispose() {
@@ -64,7 +65,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         title: Text(l10n.nowPlaying),
         actions: [
           IconButton(
-            icon: Icon(_expanded ? Icons.expand_more : Icons.expand_less),
+            icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
             key: const Key('player-expand-toggle'),
             onPressed: () => setState(() => _expanded = !_expanded),
           ),
@@ -77,11 +78,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
           builder: (context, _) {
             final vm = widget.viewModel;
             final track = vm.snapshot.currentTrack;
+            if (!vm.shouldShowErrorBanner) {
+              _lastErrorToastToken = null;
+            }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (vm.hasError)
+                if (vm.shouldShowErrorBanner) ...[
+                  Builder(
+                    builder: (context) {
+                      final errorToken = vm.latestErrorToken;
+                      if (errorToken != null &&
+                          errorToken != _lastErrorToastToken) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                _errorText(l10n, vm.snapshot.error!),
+                              ),
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        });
+                        _lastErrorToastToken = errorToken;
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                   MaterialBanner(
                     backgroundColor: Theme.of(
                       context,
@@ -89,11 +115,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     content: Text(_errorText(l10n, vm.snapshot.error!)),
                     actions: [
                       TextButton(
-                        onPressed: () {},
+                        onPressed: vm.dismissError,
                         child: Text(l10n.playerDismiss),
                       ),
                     ],
                   ),
+                ],
                 if (track == null)
                   Expanded(child: Center(child: Text(l10n.playerNoTrackLoaded)))
                 else if (!_expanded)
@@ -288,9 +315,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ),
             IconButton(
               key: const Key('player-mini-volume-mute'),
-              icon: Icon(vm.isMuted ? Icons.volume_off : Icons.volume_up),
+              icon: Icon(_volumeIcon(vm)),
               onPressed: vm.toggleMute,
             ),
+            Text('${(vm.volume * 100).round()}%'),
             IconButton(
               icon: Icon(
                 vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow,

@@ -267,6 +267,9 @@ void main() {
 
     expect(find.text('Network issue while loading audio'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Dismiss'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Dismiss'));
+    await tester.pump();
+    expect(find.byType(MaterialBanner), findsNothing);
   });
 
   testWidgets(
@@ -323,5 +326,7 @@ void main() {
     await tester.pump();
     expect(find.text('Bloom'), findsOneWidget);
     expect(find.byType(MaterialBanner), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsOneWidget);
   });
 }
