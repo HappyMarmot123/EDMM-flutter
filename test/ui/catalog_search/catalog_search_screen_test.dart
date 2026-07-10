@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:edmm/data/repositories/in_memory_local_library_repository.dart';
@@ -10,6 +12,7 @@ import 'package:edmm/domain/repositories/track_repository.dart';
 import 'package:edmm/domain/result.dart';
 import 'package:edmm/ui/catalog_search/view_model/catalog_search_view_model.dart';
 import 'package:edmm/ui/catalog_search/widgets/catalog_search_screen.dart';
+import 'package:edmm/ui/player/view_model/player_view_model.dart';
 
 Track _t(String id) => Track(
   id: id,
@@ -35,10 +38,14 @@ class _Repo implements TrackRepository {
 }
 
 class _Audio implements AudioController {
+  final _snap = StreamController<PlaybackSnapshot>.broadcast();
+  final _pos = StreamController<Duration>.broadcast();
+  int pauses = 0;
+
   @override
-  Stream<PlaybackSnapshot> get snapshot => Stream<PlaybackSnapshot>.empty();
+  Stream<PlaybackSnapshot> get snapshot => _snap.stream;
   @override
-  Stream<Duration> get position => Stream<Duration>.empty();
+  Stream<Duration> get position => _pos.stream;
   @override
   bool get isShuffleEnabled => false;
   @override
@@ -54,7 +61,7 @@ class _Audio implements AudioController {
   @override
   Future<void> play() async {}
   @override
-  Future<void> pause() async {}
+  Future<void> pause() async => pauses++;
   @override
   Future<void> seek(Duration position) async {}
   @override
@@ -62,16 +69,22 @@ class _Audio implements AudioController {
   @override
   Future<void> previous() async {}
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async {
+    await _snap.close();
+    await _pos.close();
+  }
+
+  void emit(PlaybackSnapshot snapshot) => _snap.add(snapshot);
 }
 
 CatalogSearchViewModel _vm(
   Result<List<Track>> Function(CloudinaryCategory, String) handler, {
   InMemoryLocalLibraryRepository? localLibrary,
   CatalogView? initialView,
+  _Audio? audio,
 }) => CatalogSearchViewModel(
   _Repo(handler),
-  _Audio(),
+  audio ?? _Audio(),
   localLibrary ?? InMemoryLocalLibraryRepository(),
   initialView: initialView,
   searchDebounce: Duration.zero,
@@ -105,6 +118,48 @@ void main() {
     await tester.tap(find.text('Song 2'));
     expect(index, 1);
     expect(queue!.length, 2);
+  });
+
+  testWidgets('shows the mini player below search results during playback', (
+    tester,
+  ) async {
+    final audio = _Audio();
+    final catalogVm = _vm((c, q) => Ok([_t('1'), _t('2')]), audio: audio);
+    final playerVm = PlayerViewModel(audio);
+    var openPlayerCount = 0;
+
+    await tester.pumpWidget(
+      _host(
+        CatalogSearchScreen(
+          viewModel: catalogVm,
+          playerViewModel: playerVm,
+          onOpenPlayer: () => openPlayerCount++,
+          onPlay: (_, _) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    audio.emit(
+      PlaybackSnapshot(
+        currentTrack: _t('2'),
+        status: PlaybackStatus.playing,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Song 1'), findsOneWidget);
+    expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
+    expect(find.text('Song 2'), findsNWidgets(2));
+
+    await tester.tap(find.byKey(const Key('player-mini-play-pause')));
+    await tester.pump();
+    expect(audio.pauses, 1);
+
+    await tester.tap(find.byKey(const Key('player-mini-open')));
+    await tester.pump();
+    expect(openPlayerCount, 1);
   });
 
   testWidgets('search with no results shows the clear-search action', (

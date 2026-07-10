@@ -7,6 +7,7 @@ import '../../../domain/playback/playback_snapshot.dart';
 import '../../../domain/result.dart';
 import '../../../l10n/app_localizations.dart';
 import '../view_model/player_view_model.dart';
+import 'player_mini_bar.dart';
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key, required this.viewModel});
@@ -124,7 +125,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 if (track == null)
                   Expanded(child: Center(child: Text(l10n.playerNoTrackLoaded)))
                 else if (!_expanded)
-                  Expanded(child: _buildMiniBody(vm, l10n))
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [PlayerMiniBar(viewModel: vm)],
+                    ),
+                  )
                 else
                   Expanded(child: _buildExpandedBody(vm, l10n)),
               ],
@@ -260,66 +266,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
         _EqualizerPanel(viewModel: vm, l10n: l10n),
       ],
-    );
-  }
-
-  Widget _buildMiniBody(PlayerViewModel vm, AppLocalizations l10n) {
-    final track = vm.snapshot.currentTrack!;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            if (track.artworkUrl.isNotEmpty)
-              Image.network(
-                track.artworkUrl,
-                width: 72,
-                height: 72,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.music_note),
-              )
-            else
-              const Icon(Icons.music_note, size: 72),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    track.artistName.isEmpty
-                        ? l10n.unknownArtist
-                        : track.artistName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              key: const Key('player-mini-volume-mute'),
-              icon: Icon(_volumeIcon(vm)),
-              onPressed: vm.toggleMute,
-            ),
-            Text('${(vm.volume * 100).round()}%'),
-            IconButton(
-              icon: Icon(
-                vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
-              ),
-              onPressed: vm.playPause,
-              iconSize: 36,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

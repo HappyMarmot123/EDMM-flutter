@@ -3,16 +3,22 @@ import 'package:flutter/material.dart';
 import '../../../domain/models/track.dart';
 import '../../../l10n/app_localizations.dart';
 import '../view_model/catalog_search_view_model.dart';
+import '../../player/view_model/player_view_model.dart';
+import '../../player/widgets/player_mini_bar.dart';
 
 class CatalogSearchScreen extends StatefulWidget {
   const CatalogSearchScreen({
     super.key,
     required this.viewModel,
     required this.onPlay,
+    this.playerViewModel,
+    this.onOpenPlayer,
   });
 
   final CatalogSearchViewModel viewModel;
   final void Function(List<Track> queue, int index) onPlay;
+  final PlayerViewModel? playerViewModel;
+  final VoidCallback? onOpenPlayer;
 
   @override
   State<CatalogSearchScreen> createState() => _CatalogSearchScreenState();
@@ -31,6 +37,7 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
   void dispose() {
     _searchController.dispose();
     widget.viewModel.dispose();
+    widget.playerViewModel?.dispose();
     super.dispose();
   }
 
@@ -40,6 +47,12 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.trackListTitle)),
+      bottomNavigationBar: widget.playerViewModel == null
+          ? null
+          : PlayerMiniBar(
+              viewModel: widget.playerViewModel!,
+              onOpenPlayer: widget.onOpenPlayer,
+            ),
       body: Column(
         children: [
           Padding(

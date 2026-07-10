@@ -60,11 +60,16 @@ final GoRouter appRouter = GoRouter(
             initialTrackId: state.uri.queryParameters['track'],
             telemetry: telemetry,
           ),
+          playerViewModel: PlayerViewModel(
+            audio,
+            localLibrary: localLibrary,
+            telemetry: context.read<PlaybackTelemetrySink>(),
+          ),
+          onOpenPlayer: () => context.go(Routes.player),
           onPlay: (queue, index) async {
             unawaited(persistPlaybackSelection(localLibrary, queue, index));
             await audio.loadQueue(queue, initialIndex: index);
             await audio.play();
-            if (context.mounted) context.go(Routes.player);
           },
         );
       },
