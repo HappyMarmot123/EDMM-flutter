@@ -34,6 +34,20 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant CatalogSearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // initState does NOT run again, so the new view model must be initialized here — or the
+    // list stays stuck on its initial `loading` status when we return to it.
+    if (!identical(oldWidget.viewModel, widget.viewModel)) {
+      oldWidget.viewModel.dispose();
+      widget.viewModel.init();
+    }
+    if (!identical(oldWidget.playerViewModel, widget.playerViewModel)) {
+      oldWidget.playerViewModel?.dispose();
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     widget.viewModel.dispose();

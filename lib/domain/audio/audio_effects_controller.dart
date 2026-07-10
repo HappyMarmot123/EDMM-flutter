@@ -1,27 +1,3 @@
-class AudioEqualizerBand {
-  const AudioEqualizerBand({
-    required this.index,
-    required this.label,
-    required this.minGain,
-    required this.maxGain,
-    required this.gain,
-  });
-
-  final int index;
-  final String label;
-  final double minGain;
-  final double maxGain;
-  final double gain;
-
-  AudioEqualizerBand copyWith({double? gain}) => AudioEqualizerBand(
-    index: index,
-    label: label,
-    minGain: minGain,
-    maxGain: maxGain,
-    gain: gain ?? this.gain,
-  );
-}
-
 enum AudioEqualizerSupport { supported, unsupportedOnPlatform, unavailable }
 
 enum AudioEqualizerPreset { flat, bassBoost }

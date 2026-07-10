@@ -274,7 +274,7 @@ void main() {
 
     await tester.drag(
       find.byKey(const Key('player-close-drag-area')),
-      const Offset(0, 80),
+      const Offset(0, 300),
     );
     await tester.pump();
     expect(closeCount, 2);

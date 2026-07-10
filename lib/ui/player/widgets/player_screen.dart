@@ -17,13 +17,31 @@ class PlayerScreen extends StatefulWidget {
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends State<PlayerScreen> {
+class _PlayerScreenState extends State<PlayerScreen>
+    with SingleTickerProviderStateMixin {
+  static const double _dismissThreshold = 120;
+
   bool _visualizerEnabled = false;
   String? _lastErrorToastToken;
-  double _closeDragDy = 0;
+  double _dragOffset = 0;
+  double _snapFrom = 0;
+  late final AnimationController _snapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _snapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    )..addListener(() {
+      final t = Curves.easeOut.transform(_snapController.value);
+      setState(() => _dragOffset = _snapFrom * (1 - t));
+    });
+  }
 
   @override
   void dispose() {
+    _snapController.dispose();
     widget.viewModel.dispose();
     super.dispose();
   }
@@ -67,18 +85,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _handleCloseDragStart(DragStartDetails _) {
-    _closeDragDy = 0;
+    _snapController.stop();
   }
 
   void _handleCloseDragUpdate(DragUpdateDetails details) {
-    _closeDragDy += details.primaryDelta ?? 0;
+    setState(() {
+      _dragOffset = math.max(0, _dragOffset + (details.primaryDelta ?? 0));
+    });
   }
 
-  void _handleCloseDragEnd(DragEndDetails _) {
-    if (_closeDragDy >= 48) {
+  void _handleCloseDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (_dragOffset > _dismissThreshold || velocity > 800) {
       _closePlayer();
+      return;
     }
-    _closeDragDy = 0;
+    // 임계값 미만이면 원위치로 스냅백.
+    _snapFrom = _dragOffset;
+    _snapController.forward(from: 0);
   }
 
   @override
@@ -92,24 +116,37 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _closePlayer();
       },
       child: Scaffold(
-        appBar: AppBar(
-          leading: GestureDetector(
-            key: const Key('player-close-drag-area'),
-            behavior: HitTestBehavior.opaque,
-            onVerticalDragStart: _handleCloseDragStart,
-            onVerticalDragUpdate: _handleCloseDragUpdate,
-            onVerticalDragEnd: _handleCloseDragEnd,
-            child: IconButton(
-              key: const Key('player-close-button'),
-              icon: const Icon(Icons.keyboard_arrow_down),
-              onPressed: _closePlayer,
-            ),
-          ),
-          title: Text(l10n.nowPlaying),
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ListenableBuilder(
+        backgroundColor: Colors.transparent,
+        body: Transform.translate(
+          offset: Offset(0, _dragOffset),
+          child: Material(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  GestureDetector(
+                    key: const Key('player-close-drag-area'),
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragStart: _handleCloseDragStart,
+                    onVerticalDragUpdate: _handleCloseDragUpdate,
+                    onVerticalDragEnd: _handleCloseDragEnd,
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: Center(
+                        child: IconButton(
+                          key: const Key('player-close-button'),
+                          icon: const Icon(Icons.keyboard_arrow_down),
+                          tooltip: l10n.playerDismiss,
+                          onPressed: _closePlayer,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: ListenableBuilder(
             listenable: widget.viewModel,
             builder: (context, _) {
               final vm = widget.viewModel;
@@ -166,6 +203,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ],
               );
             },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

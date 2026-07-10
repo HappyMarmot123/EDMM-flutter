@@ -54,6 +54,7 @@ class CatalogSearchViewModel extends ChangeNotifier {
 
   Timer? _debounce;
   StreamSubscription<PlaybackSnapshot>? _snapshotSub;
+  bool _disposed = false;
 
   CatalogView get view => _view;
 
@@ -300,7 +301,14 @@ class CatalogSearchViewModel extends ChangeNotifier {
   }
 
   @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
+
+  @override
   void dispose() {
+    _disposed = true;
     _debounce?.cancel();
     _snapshotSub?.cancel();
     super.dispose();

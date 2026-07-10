@@ -12,7 +12,7 @@ import '../domain/telemetry/playback_telemetry.dart';
 import '../ui/catalog_search/view_model/catalog_search_view_model.dart';
 import '../ui/catalog_search/widgets/catalog_search_screen.dart';
 import '../ui/player/view_model/player_view_model.dart';
-import '../ui/player/widgets/player_screen.dart';
+import '../ui/player/widgets/player_sheet.dart';
 import '../ui/player/widgets/track_deep_link_screen.dart';
 import 'routes.dart';
 
@@ -45,6 +45,7 @@ final GoRouter appRouter = GoRouter(
         final audio = context.read<AudioController>();
         final localLibrary = context.read<LocalLibraryRepository>();
         final telemetry = context.read<CatalogSearchTelemetrySink>();
+        final playbackTelemetry = context.read<PlaybackTelemetrySink>();
         final view = switch (state.uri.queryParameters['view']) {
           'recent' => CatalogView.recent,
           'edm' => CatalogView.edm,
@@ -63,9 +64,16 @@ final GoRouter appRouter = GoRouter(
           playerViewModel: PlayerViewModel(
             audio,
             localLibrary: localLibrary,
-            telemetry: context.read<PlaybackTelemetrySink>(),
+            telemetry: playbackTelemetry,
           ),
-          onOpenPlayer: () => context.push(Routes.player),
+          onOpenPlayer: () => showPlayerSheet(
+            context,
+            viewModel: PlayerViewModel(
+              audio,
+              localLibrary: localLibrary,
+              telemetry: playbackTelemetry,
+            ),
+          ),
           onPlay: (queue, index) async {
             unawaited(persistPlaybackSelection(localLibrary, queue, index));
             await audio.loadQueue(queue, initialIndex: index);
@@ -73,23 +81,6 @@ final GoRouter appRouter = GoRouter(
           },
         );
       },
-    ),
-    GoRoute(
-      path: Routes.player,
-      builder: (context, state) => PlayerScreen(
-        viewModel: PlayerViewModel(
-          context.read<AudioController>(),
-          localLibrary: context.read<LocalLibraryRepository>(),
-          telemetry: context.read<PlaybackTelemetrySink>(),
-        ),
-        onClose: () {
-          if (context.canPop()) {
-            context.pop();
-            return;
-          }
-          context.go(Routes.trackList);
-        },
-      ),
     ),
   ],
 );

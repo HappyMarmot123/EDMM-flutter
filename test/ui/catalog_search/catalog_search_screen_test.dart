@@ -217,4 +217,27 @@ void main() {
     expect(find.text('Song 1'), findsOneWidget); // stale 유지
     expect(find.byType(MaterialBanner), findsOneWidget);
   });
+
+  testWidgets('re-initializes when handed a fresh view model on rebuild', (
+    tester,
+  ) async {
+    final vm1 = _vm((c, q) => Ok([_t('1')]));
+    await tester.pumpWidget(
+      _host(CatalogSearchScreen(viewModel: vm1, onPlay: (_, _) {})),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Song 1'), findsOneWidget);
+
+    // go_router can rebuild the '/' route with a brand-new, uninitialized view
+    // model while reusing this screen's State. It must be initialized here —
+    // not left stuck on its initial `loading` status.
+    final vm2 = _vm((c, q) => Ok([_t('2')]));
+    await tester.pumpWidget(
+      _host(CatalogSearchScreen(viewModel: vm2, onPlay: (_, _) {})),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Song 2'), findsOneWidget);
+  });
 }
