@@ -225,15 +225,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
               icon: const Icon(Icons.skip_next),
               onPressed: vm.next,
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              key: const Key('player-eq-toggle'),
-              iconSize: 28,
-              icon: Icon(
-                vm.isEqualizerEnabled ? Icons.tune : Icons.tune_outlined,
-              ),
-              onPressed: vm.toggleEqualizer,
-            ),
             IconButton(
               key: const Key('player-visualizer-toggle'),
               iconSize: 28,
@@ -267,7 +258,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             Text('${(vm.volume * 100).round()}%'),
           ],
         ),
-        if (vm.isEqualizerEnabled) _EqualizerPanel(viewModel: vm, l10n: l10n),
+        _EqualizerPanel(viewModel: vm, l10n: l10n),
       ],
     );
   }
@@ -341,7 +332,6 @@ class _EqualizerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bands = viewModel.equalizerBands;
     final unavailableCopy =
         viewModel.equalizerSupport ==
             AudioEqualizerSupport.unsupportedOnPlatform
@@ -349,8 +339,8 @@ class _EqualizerPanel extends StatelessWidget {
         : l10n.playerEqualizerUnavailable;
     return SizedBox(
       key: const Key('player-eq-panel'),
-      height: 116,
-      child: bands.isEmpty
+      height: 92,
+      child: viewModel.equalizerSupport != AudioEqualizerSupport.supported
           ? Center(
               child: Text(
                 unavailableCopy,
@@ -365,19 +355,32 @@ class _EqualizerPanel extends StatelessWidget {
                   style: Theme.of(context).textTheme.labelMedium,
                 ),
                 const SizedBox(height: 6),
-                Expanded(
-                  child: Row(
-                    children: [
-                      for (final band in bands)
-                        Expanded(
-                          child: _EqualizerBandSlider(
-                            band: band,
-                            onChanged: (value) => viewModel
-                                .setEqualizerBandGain(band.index, value),
-                          ),
-                        ),
-                    ],
-                  ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    _EqualizerPresetChip(
+                      key: const Key('player-eq-preset-flat'),
+                      label: l10n.playerEqualizerPresetFlat,
+                      tooltip: l10n.playerEqualizerPresetFlatHelp,
+                      selected:
+                          viewModel.equalizerPreset ==
+                          AudioEqualizerPreset.flat,
+                      onSelected: () => viewModel.setEqualizerPreset(
+                        AudioEqualizerPreset.flat,
+                      ),
+                    ),
+                    _EqualizerPresetChip(
+                      key: const Key('player-eq-preset-bass'),
+                      label: l10n.playerEqualizerPresetBass,
+                      tooltip: l10n.playerEqualizerPresetBassHelp,
+                      selected:
+                          viewModel.equalizerPreset ==
+                          AudioEqualizerPreset.bassBoost,
+                      onSelected: () => viewModel.setEqualizerPreset(
+                        AudioEqualizerPreset.bassBoost,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -385,35 +388,29 @@ class _EqualizerPanel extends StatelessWidget {
   }
 }
 
-class _EqualizerBandSlider extends StatelessWidget {
-  const _EqualizerBandSlider({required this.band, required this.onChanged});
+class _EqualizerPresetChip extends StatelessWidget {
+  const _EqualizerPresetChip({
+    super.key,
+    required this.label,
+    required this.tooltip,
+    required this.selected,
+    required this.onSelected,
+  });
 
-  final AudioEqualizerBand band;
-  final ValueChanged<double> onChanged;
+  final String label;
+  final String tooltip;
+  final bool selected;
+  final VoidCallback onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: RotatedBox(
-            quarterTurns: 3,
-            child: Slider(
-              key: Key('player-eq-band-${band.index}'),
-              value: band.gain.clamp(band.minGain, band.maxGain).toDouble(),
-              min: band.minGain,
-              max: band.maxGain,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-        Text(
-          band.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelSmall,
-        ),
-      ],
+    return Tooltip(
+      message: tooltip,
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+      ),
     );
   }
 }

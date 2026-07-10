@@ -28,27 +28,29 @@ void main() {
     );
   });
 
-  test('Darwin bands map into app equalizer band model defensively', () {
-    final text = source.readAsStringSync();
+  test(
+    'equalizer presets are applied through platform band gains internally',
+    () {
+      final text = source.readAsStringSync();
 
-    expect(
-      text,
-      contains('Future<List<AudioEqualizerBand>> _getDarwinEqualizerBands()'),
-    );
-    expect(text, contains('_darwinEqualizer.parameters.timeout'));
-    expect(text, contains('label: _formatFrequency(band.centerFrequency)'));
-    expect(text, contains('minGain: parameters.minDecibels'));
-    expect(text, contains('maxGain: parameters.maxDecibels'));
-    expect(text, contains('await band.setGain(gain)'));
-    expect(text, contains('return const []'));
-  });
+      expect(text, contains('Future<void> setEqualizerPreset'));
+      expect(text, contains('.gainForFrequency'));
+      expect(text, contains('await band.setGain(gain.toDouble())'));
+    },
+  );
 
-  test('unsupported equalizer copy is not Android-only', () {
+  test('player UI exposes presets instead of manual band sliders', () {
     final screenText = playerScreen.readAsStringSync();
     final arbText = englishArb.readAsStringSync();
 
+    expect(screenText, contains('player-eq-preset-flat'));
+    expect(screenText, contains('player-eq-preset-bass'));
+    expect(screenText, isNot(contains('player-eq-band-')));
+    expect(screenText, isNot(contains('setEqualizerBandGain')));
     expect(screenText, contains('playerEqualizerUnsupportedPlatform'));
     expect(screenText, isNot(contains('playerEqualizerAndroidOnly')));
     expect(arbText, isNot(contains('Android devices only')));
+    expect(arbText, contains('playerEqualizerPresetFlat'));
+    expect(arbText, contains('playerEqualizerPresetBass'));
   });
 }

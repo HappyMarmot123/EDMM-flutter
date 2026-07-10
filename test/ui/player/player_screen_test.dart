@@ -26,26 +26,9 @@ class _FakeAudio implements AudioController, AudioEffectsController {
   final setShuffleCalls = <bool>[];
   final setVolumeCalls = <double>[];
   final setMuteCalls = <bool>[];
-  bool equalizerEnabled = false;
+  AudioEqualizerPreset preset = AudioEqualizerPreset.flat;
   AudioEqualizerSupport support = AudioEqualizerSupport.supported;
-  final setEqualizerCalls = <bool>[];
-  final setEqualizerBandGainCalls = <({int index, double gain})>[];
-  List<AudioEqualizerBand> bands = const [
-    AudioEqualizerBand(
-      index: 0,
-      label: '80 Hz',
-      minGain: -6,
-      maxGain: 6,
-      gain: 0,
-    ),
-    AudioEqualizerBand(
-      index: 1,
-      label: '1 kHz',
-      minGain: -6,
-      maxGain: 6,
-      gain: 0,
-    ),
-  ];
+  final setEqualizerPresetCalls = <AudioEqualizerPreset>[];
 
   @override
   Stream<PlaybackSnapshot> get snapshot => _snap.stream;
@@ -81,27 +64,15 @@ class _FakeAudio implements AudioController, AudioEffectsController {
   }
 
   @override
-  bool get isEqualizerEnabled => equalizerEnabled;
+  AudioEqualizerPreset get equalizerPreset => preset;
 
   @override
   AudioEqualizerSupport get equalizerSupport => support;
 
   @override
-  Future<List<AudioEqualizerBand>> getEqualizerBands() async => bands;
-
-  @override
-  Future<void> setEqualizerEnabled(bool enabled) async {
-    equalizerEnabled = enabled;
-    setEqualizerCalls.add(enabled);
-  }
-
-  @override
-  Future<void> setEqualizerBandGain(int index, double gain) async {
-    setEqualizerBandGainCalls.add((index: index, gain: gain));
-    bands = [
-      for (final band in bands)
-        band.index == index ? band.copyWith(gain: gain) : band,
-    ];
+  Future<void> setEqualizerPreset(AudioEqualizerPreset preset) async {
+    this.preset = preset;
+    setEqualizerPresetCalls.add(preset);
   }
 
   @override
@@ -175,7 +146,6 @@ void main() {
     );
     await tester.tap(find.byIcon(Icons.skip_next));
     await tester.tap(find.byIcon(Icons.skip_previous));
-    await tester.tap(find.byKey(const Key('player-eq-toggle')));
     await tester.tap(find.byKey(const Key('player-visualizer-toggle')));
     await tester.pumpAndSettle();
 
@@ -185,14 +155,16 @@ void main() {
     expect(audio.nexts, 1);
     expect(audio.previouses, 1);
     expect(audio.setShuffleCalls, [true]);
-    expect(audio.setEqualizerCalls, [true]);
     expect(find.byKey(const Key('player-eq-panel')), findsOneWidget);
+    expect(find.byKey(const Key('player-eq-preset-flat')), findsOneWidget);
+    expect(find.byKey(const Key('player-eq-preset-bass')), findsOneWidget);
+    expect(find.byKey(const Key('player-eq-band-0')), findsNothing);
     expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
     await tester.tap(find.byIcon(Icons.play_arrow));
     expect(audio.plays, 1);
   });
 
-  testWidgets('equalizer panel delegates band gain changes', (tester) async {
+  testWidgets('equalizer panel delegates preset changes', (tester) async {
     final audio = _FakeAudio();
     final vm = PlayerViewModel(audio);
     await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
@@ -205,23 +177,21 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('player-eq-toggle')));
-    await tester.pumpAndSettle();
-    await tester.drag(
-      find.byKey(const Key('player-eq-band-0')),
-      const Offset(0, -80),
-    );
+    expect(find.text('Flat'), findsOneWidget);
+    expect(find.text('Bass Boost'), findsOneWidget);
+    expect(find.byKey(const Key('player-eq-band-0')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('player-eq-preset-bass')));
     await tester.pump();
 
-    expect(audio.setEqualizerBandGainCalls, isNotEmpty);
+    expect(audio.setEqualizerPresetCalls, [AudioEqualizerPreset.bassBoost]);
   });
 
   testWidgets(
     'shows platform-neutral equalizer copy on unsupported platforms',
     (tester) async {
       final audio = _FakeAudio()
-        ..support = AudioEqualizerSupport.unsupportedOnPlatform
-        ..bands = const [];
+        ..support = AudioEqualizerSupport.unsupportedOnPlatform;
       final vm = PlayerViewModel(audio);
       await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
       audio._snap.add(
@@ -233,7 +203,6 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('player-eq-toggle')));
       await tester.pumpAndSettle();
 
       expect(

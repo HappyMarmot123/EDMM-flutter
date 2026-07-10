@@ -37,8 +37,8 @@ class PlayerViewModel extends ChangeNotifier {
     _mute = _volume <= 0;
     _prevVolume = _volume > 0 ? _volume : 1.0;
     _shuffleEnabled = _audio.isShuffleEnabled;
-    _equalizerEnabled = _effectsController.isEqualizerEnabled;
-    unawaited(_loadEqualizerBands());
+    _equalizerPreset = _effectsController.equalizerPreset;
+    unawaited(_restoreEqualizerPreset());
   }
 
   final AudioController _audio;
@@ -51,10 +51,9 @@ class PlayerViewModel extends ChangeNotifier {
   double _prevVolume = 1.0;
   bool _shuffleEnabled = false;
   String? _lastPersistedTrackId;
-  bool _equalizerEnabled = false;
+  AudioEqualizerPreset _equalizerPreset = defaultAudioEqualizerPreset;
   String? _latestErrorToken;
   String? _dismissedErrorToken;
-  List<AudioEqualizerBand> _equalizerBands = const [];
 
   PlaybackSnapshot snapshot = const PlaybackSnapshot();
   Stream<Duration> get position => _audio.position;
@@ -62,14 +61,14 @@ class PlayerViewModel extends ChangeNotifier {
   bool get isMuted => _mute;
   double get volume => _volume;
   bool get isShuffleEnabled => _shuffleEnabled;
-  bool get isEqualizerEnabled => _equalizerEnabled;
+  bool get isEqualizerEnabled => _equalizerPreset.appliesProcessing;
+  AudioEqualizerPreset get equalizerPreset => _equalizerPreset;
   bool get shouldShowErrorBanner =>
       snapshot.error != null &&
       snapshot.status == PlaybackStatus.error &&
       _latestErrorToken != _dismissedErrorToken;
   AudioEqualizerSupport get equalizerSupport =>
       _effectsController.equalizerSupport;
-  List<AudioEqualizerBand> get equalizerBands => _equalizerBands;
   String? get latestErrorToken => _latestErrorToken;
 
   Future<void> playPause() =>
@@ -110,22 +109,13 @@ class PlayerViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> toggleEqualizer() async {
-    final enabled = !_equalizerEnabled;
-    await _effectsController.setEqualizerEnabled(enabled);
-    _equalizerEnabled = _effectsController.isEqualizerEnabled;
-    if (_equalizerBands.isEmpty) {
-      await _loadEqualizerBands(notify: false);
-    }
-    notifyListeners();
-  }
-
-  Future<void> setEqualizerBandGain(int index, double gain) async {
-    await _effectsController.setEqualizerBandGain(index, gain);
-    _equalizerBands = [
-      for (final band in _equalizerBands)
-        band.index == index ? band.copyWith(gain: gain) : band,
-    ];
+  Future<void> setEqualizerPreset(AudioEqualizerPreset preset) async {
+    await _effectsController.setEqualizerPreset(preset);
+    _equalizerPreset = _effectsController.equalizerPreset;
+    await _localLibrary.setAudioSetting(
+      equalizerPresetSettingKey,
+      _equalizerPreset.storageValue,
+    );
     notifyListeners();
   }
 
@@ -148,9 +138,15 @@ class PlayerViewModel extends ChangeNotifier {
     unawaited(persistPlaybackTrack(_localLibrary, track));
   }
 
-  Future<void> _loadEqualizerBands({bool notify = true}) async {
-    _equalizerBands = await _effectsController.getEqualizerBands();
-    if (notify) notifyListeners();
+  Future<void> _restoreEqualizerPreset() async {
+    final storedValue = await _localLibrary.getAudioSetting(
+      equalizerPresetSettingKey,
+    );
+    final restored = audioEqualizerPresetFromStorage(storedValue);
+    if (restored == _equalizerPreset) return;
+    await _effectsController.setEqualizerPreset(restored);
+    _equalizerPreset = _effectsController.equalizerPreset;
+    notifyListeners();
   }
 
   @override

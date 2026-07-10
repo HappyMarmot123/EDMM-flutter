@@ -42,7 +42,7 @@ class JustAudioController extends BaseAudioHandler
   PlaybackSnapshot _latestSnapshot = const PlaybackSnapshot();
   bool _shuffleEnabled = false;
   double _volume = 1.0;
-  bool _equalizerEnabled = false;
+  AudioEqualizerPreset _equalizerPreset = defaultAudioEqualizerPreset;
 
   @override
   Stream<PlaybackSnapshot> get snapshot async* {
@@ -60,7 +60,7 @@ class JustAudioController extends BaseAudioHandler
   double get volume => _volume;
 
   @override
-  bool get isEqualizerEnabled => _equalizerEnabled;
+  AudioEqualizerPreset get equalizerPreset => _equalizerPreset;
 
   bool get _supportsAndroidEqualizer => !kIsWeb && Platform.isAndroid;
 
@@ -76,109 +76,47 @@ class JustAudioController extends BaseAudioHandler
       : AudioEqualizerSupport.unsupportedOnPlatform;
 
   @override
-  Future<List<AudioEqualizerBand>> getEqualizerBands() async {
+  Future<void> setEqualizerPreset(AudioEqualizerPreset preset) async {
     if (_supportsAndroidEqualizer) {
-      return _getAndroidEqualizerBands();
-    }
-    if (_supportsDarwinEqualizer) {
-      return _getDarwinEqualizerBands();
-    }
-    return const [];
-  }
-
-  Future<List<AudioEqualizerBand>> _getAndroidEqualizerBands() async {
-    try {
-      final parameters = await _androidEqualizer.parameters.timeout(
-        const Duration(seconds: 1),
-      );
-      return [
-        for (final band in parameters.bands)
-          AudioEqualizerBand(
-            index: band.index,
-            label: _formatFrequency(band.centerFrequency),
-            minGain: parameters.minDecibels,
-            maxGain: parameters.maxDecibels,
-            gain: band.gain,
-          ),
-      ];
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  Future<List<AudioEqualizerBand>> _getDarwinEqualizerBands() async {
-    try {
-      final parameters = await _darwinEqualizer.parameters.timeout(
-        const Duration(seconds: 1),
-      );
-      return [
-        for (final band in parameters.bands)
-          AudioEqualizerBand(
-            index: band.index,
-            label: _formatFrequency(band.centerFrequency),
-            minGain: parameters.minDecibels,
-            maxGain: parameters.maxDecibels,
-            gain: band.gain,
-          ),
-      ];
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  @override
-  Future<void> setEqualizerEnabled(bool enabled) async {
-    if (_supportsAndroidEqualizer) {
-      await _guard(() async {
-        await _androidEqualizer.setEnabled(enabled);
-        _equalizerEnabled = enabled;
-      });
+      await _applyAndroidEqualizerPreset(preset);
       return;
     }
     if (_supportsDarwinEqualizer) {
-      await _guard(() async {
-        await _darwinEqualizer.setEnabled(enabled);
-        _equalizerEnabled = enabled;
-      });
-    }
-  }
-
-  @override
-  Future<void> setEqualizerBandGain(int index, double gain) async {
-    if (_supportsAndroidEqualizer) {
-      await _setAndroidEqualizerBandGain(index, gain);
+      await _applyDarwinEqualizerPreset(preset);
       return;
     }
-    if (_supportsDarwinEqualizer) {
-      await _setDarwinEqualizerBandGain(index, gain);
-    }
+    _equalizerPreset = defaultAudioEqualizerPreset;
   }
 
-  Future<void> _setAndroidEqualizerBandGain(int index, double gain) async {
+  Future<void> _applyAndroidEqualizerPreset(AudioEqualizerPreset preset) async {
     await _guard(() async {
       final parameters = await _androidEqualizer.parameters.timeout(
         const Duration(seconds: 1),
       );
+      await _androidEqualizer.setEnabled(preset.appliesProcessing);
       for (final band in parameters.bands) {
-        if (band.index == index) {
-          await band.setGain(gain);
-          return;
-        }
+        final gain = preset
+            .gainForFrequency(band.centerFrequency)
+            .clamp(parameters.minDecibels, parameters.maxDecibels);
+        await band.setGain(gain.toDouble());
       }
+      _equalizerPreset = preset;
     });
   }
 
-  Future<void> _setDarwinEqualizerBandGain(int index, double gain) async {
+  Future<void> _applyDarwinEqualizerPreset(AudioEqualizerPreset preset) async {
     await _guard(() async {
       final parameters = await _darwinEqualizer.parameters.timeout(
         const Duration(seconds: 1),
       );
+      await _darwinEqualizer.setEnabled(preset.appliesProcessing);
       for (final band in parameters.bands) {
-        if (band.index == index) {
-          await band.setGain(gain);
-          return;
-        }
+        final gain = preset
+            .gainForFrequency(band.centerFrequency)
+            .clamp(parameters.minDecibels, parameters.maxDecibels);
+        await band.setGain(gain.toDouble());
       }
+      _equalizerPreset = preset;
     });
   }
 
@@ -339,13 +277,5 @@ class JustAudioController extends BaseAudioHandler
         queueIndex: event.currentIndex,
       ),
     );
-  }
-
-  String _formatFrequency(double frequency) {
-    if (frequency >= 1000) {
-      final khz = frequency / 1000;
-      return '${khz.toStringAsFixed(khz >= 10 ? 0 : 1)} kHz';
-    }
-    return '${frequency.round()} Hz';
   }
 }

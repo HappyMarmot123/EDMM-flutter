@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:edmm/data/repositories/in_memory_local_library_repository.dart';
 import 'package:edmm/domain/audio/audio_controller.dart';
+import 'package:edmm/domain/audio/audio_effects_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
 import 'package:edmm/domain/result.dart';
@@ -98,6 +99,25 @@ class _PlaybackTelemetryRecorder extends PlaybackTelemetrySink {
   void emit(PlaybackTelemetryEvent event) => events.add(event);
 }
 
+class _FakeEffects implements AudioEffectsController {
+  _FakeEffects([this._preset = AudioEqualizerPreset.flat]);
+
+  final setPresetCalls = <AudioEqualizerPreset>[];
+  AudioEqualizerPreset _preset;
+
+  @override
+  AudioEqualizerSupport get equalizerSupport => AudioEqualizerSupport.supported;
+
+  @override
+  AudioEqualizerPreset get equalizerPreset => _preset;
+
+  @override
+  Future<void> setEqualizerPreset(AudioEqualizerPreset preset) async {
+    _preset = preset;
+    setPresetCalls.add(preset);
+  }
+}
+
 void main() {
   test('mirrors snapshot stream and notifies', () async {
     final audio = _FakeAudio();
@@ -182,6 +202,65 @@ void main() {
       expect(vm.volume, closeTo(0.75, 0.0001));
     },
   );
+
+  test('defaults equalizer preset to flat', () async {
+    final effects = _FakeEffects();
+    final vm = PlayerViewModel(_FakeAudio(), effectsController: effects);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.equalizerPreset, AudioEqualizerPreset.flat);
+    expect(effects.setPresetCalls, isEmpty);
+  });
+
+  test('restores stored bass boost preset', () async {
+    final effects = _FakeEffects();
+    final localLibrary = InMemoryLocalLibraryRepository();
+    await localLibrary.setAudioSetting('equalizer.preset', 'bass');
+
+    final vm = PlayerViewModel(
+      _FakeAudio(),
+      localLibrary: localLibrary,
+      effectsController: effects,
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.equalizerPreset, AudioEqualizerPreset.bassBoost);
+    expect(effects.setPresetCalls, [AudioEqualizerPreset.bassBoost]);
+  });
+
+  test('falls back to flat for invalid stored equalizer preset', () async {
+    final effects = _FakeEffects(AudioEqualizerPreset.bassBoost);
+    final localLibrary = InMemoryLocalLibraryRepository();
+    await localLibrary.setAudioSetting('equalizer.preset', 'edm');
+
+    final vm = PlayerViewModel(
+      _FakeAudio(),
+      localLibrary: localLibrary,
+      effectsController: effects,
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.equalizerPreset, AudioEqualizerPreset.flat);
+    expect(effects.setPresetCalls, [AudioEqualizerPreset.flat]);
+  });
+
+  test('stores selected equalizer preset', () async {
+    final effects = _FakeEffects();
+    final localLibrary = InMemoryLocalLibraryRepository();
+    final vm = PlayerViewModel(
+      _FakeAudio(),
+      localLibrary: localLibrary,
+      effectsController: effects,
+    );
+
+    await vm.setEqualizerPreset(AudioEqualizerPreset.bassBoost);
+
+    expect(vm.equalizerPreset, AudioEqualizerPreset.bassBoost);
+    expect(effects.setPresetCalls, [AudioEqualizerPreset.bassBoost]);
+    expect(await localLibrary.getAudioSetting('equalizer.preset'), 'bass');
+  });
 
   test('emits playback error telemetry from snapshot errors', () async {
     final audio = _FakeAudio();

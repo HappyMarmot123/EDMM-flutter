@@ -212,6 +212,30 @@ abstract class AppLocalizations {
   /// **'Equalizer'**
   String get playerEqualizer;
 
+  /// No description provided for @playerEqualizerPresetFlat.
+  ///
+  /// In en, this message translates to:
+  /// **'Flat'**
+  String get playerEqualizerPresetFlat;
+
+  /// No description provided for @playerEqualizerPresetFlatHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the original balance with no EQ coloring'**
+  String get playerEqualizerPresetFlatHelp;
+
+  /// No description provided for @playerEqualizerPresetBass.
+  ///
+  /// In en, this message translates to:
+  /// **'Bass Boost'**
+  String get playerEqualizerPresetBass;
+
+  /// No description provided for @playerEqualizerPresetBassHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds low-end punch with a clean midrange scoop'**
+  String get playerEqualizerPresetBassHelp;
+
   /// No description provided for @playerEqualizerUnsupportedPlatform.
   ///
   /// In en, this message translates to:

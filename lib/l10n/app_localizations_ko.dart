@@ -66,6 +66,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get playerEqualizer => '이퀄라이저';
 
   @override
+  String get playerEqualizerPresetFlat => 'Flat';
+
+  @override
+  String get playerEqualizerPresetFlatHelp => '원본 밸런스를 유지하는 중립 프리셋';
+
+  @override
+  String get playerEqualizerPresetBass => 'Bass Boost';
+
+  @override
+  String get playerEqualizerPresetBassHelp => '저역 타격감을 강화하고 중역을 깔끔하게 정리합니다';
+
+  @override
   String get playerEqualizerUnsupportedPlatform =>
       '이퀄라이저는 지원되는 Android, iOS, macOS 기기에서 사용할 수 있습니다';
 

@@ -66,6 +66,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerEqualizer => 'Equalizer';
 
   @override
+  String get playerEqualizerPresetFlat => 'Flat';
+
+  @override
+  String get playerEqualizerPresetFlatHelp =>
+      'Keeps the original balance with no EQ coloring';
+
+  @override
+  String get playerEqualizerPresetBass => 'Bass Boost';
+
+  @override
+  String get playerEqualizerPresetBassHelp =>
+      'Adds low-end punch with a clean midrange scoop';
+
+  @override
   String get playerEqualizerUnsupportedPlatform =>
       'Equalizer is available on supported Android, iOS, and macOS devices';
 
