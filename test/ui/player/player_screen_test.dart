@@ -241,39 +241,48 @@ void main() {
     expect(find.byType(MaterialBanner), findsNothing);
   });
 
-  testWidgets(
-    'toggle expand mode shows mini player and hides expanded controls',
-    (tester) async {
-      final audio = _FakeAudio();
-      final vm = PlayerViewModel(audio);
-      await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
-      audio._snap.add(
-        PlaybackSnapshot(
-          currentTrack: _track(),
-          status: PlaybackStatus.paused,
-          duration: const Duration(minutes: 1),
+  testWidgets('close controls dismiss the fullscreen player', (tester) async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    var closeCount = 0;
+    await tester.pumpWidget(
+      _host(
+        PlayerScreen(
+          viewModel: vm,
+          onClose: () {
+            closeCount++;
+          },
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
 
-      expect(find.byKey(const Key('player-progress-slider')), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next), findsOneWidget);
-      expect(find.byKey(const Key('player-mini-volume-mute')), findsNothing);
+    expect(find.byKey(const Key('player-progress-slider')), findsOneWidget);
+    expect(find.byIcon(Icons.skip_next), findsOneWidget);
+    expect(find.byKey(const Key('player-mini-bar')), findsNothing);
 
-      await tester.tap(find.byKey(const Key('player-expand-toggle')));
-      await tester.pump();
+    await tester.tap(find.byKey(const Key('player-close-button')));
+    await tester.pump();
+    expect(closeCount, 1);
 
-      expect(find.byKey(const Key('player-progress-slider')), findsNothing);
-      expect(find.byIcon(Icons.skip_next), findsNothing);
-      expect(find.byKey(const Key('player-mini-volume-mute')), findsOneWidget);
+    await tester.drag(
+      find.byKey(const Key('player-close-drag-area')),
+      const Offset(0, 80),
+    );
+    await tester.pump();
+    expect(closeCount, 2);
 
-      await tester.tap(find.byKey(const Key('player-mini-volume-mute')));
-      await tester.pump();
-      expect(audio.setMuteCalls, [true]);
-      await tester.tap(find.byIcon(Icons.play_arrow));
-      expect(audio.plays, 1);
-    },
-  );
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(closeCount, 3);
+  });
 
   testWidgets('shows a banner on playback error', (tester) async {
     final audio = _FakeAudio();

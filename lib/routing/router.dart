@@ -65,7 +65,7 @@ final GoRouter appRouter = GoRouter(
             localLibrary: localLibrary,
             telemetry: context.read<PlaybackTelemetrySink>(),
           ),
-          onOpenPlayer: () => context.go(Routes.player),
+          onOpenPlayer: () => context.push(Routes.player),
           onPlay: (queue, index) async {
             unawaited(persistPlaybackSelection(localLibrary, queue, index));
             await audio.loadQueue(queue, initialIndex: index);
@@ -82,6 +82,13 @@ final GoRouter appRouter = GoRouter(
           localLibrary: context.read<LocalLibraryRepository>(),
           telemetry: context.read<PlaybackTelemetrySink>(),
         ),
+        onClose: () {
+          if (context.canPop()) {
+            context.pop();
+            return;
+          }
+          context.go(Routes.trackList);
+        },
       ),
     ),
   ],

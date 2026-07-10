@@ -19,7 +19,10 @@ void main() {
     expect(routerSource, contains('playerViewModel: PlayerViewModel('));
     expect(
       routerSource,
-      contains('onOpenPlayer: () => context.go(Routes.player)'),
+      contains('onOpenPlayer: () => context.push(Routes.player)'),
     );
+    expect(routerSource, contains('onClose: () {'));
+    expect(routerSource, contains('context.pop();'));
+    expect(routerSource, contains('context.go(Routes.trackList);'));
   });
 }

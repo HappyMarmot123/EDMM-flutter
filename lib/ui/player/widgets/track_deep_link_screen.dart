@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../domain/audio/audio_controller.dart';
 import '../../../domain/logic/deep_link_track_loader.dart';
@@ -6,6 +7,7 @@ import '../../../domain/repositories/local_library_repository.dart';
 import '../../../domain/repositories/track_repository.dart';
 import '../../../domain/telemetry/playback_telemetry.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../routing/routes.dart';
 import '../view_model/player_view_model.dart';
 import 'player_screen.dart';
 
@@ -74,6 +76,13 @@ class _TrackDeepLinkScreenState extends State<TrackDeepLinkScreen> {
         localLibrary: widget.localLibrary,
         telemetry: widget.telemetry,
       ),
+      onClose: () {
+        if (context.canPop()) {
+          context.pop();
+          return;
+        }
+        context.go(Routes.trackList);
+      },
     );
   }
 }

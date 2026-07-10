@@ -7,20 +7,20 @@ import '../../../domain/playback/playback_snapshot.dart';
 import '../../../domain/result.dart';
 import '../../../l10n/app_localizations.dart';
 import '../view_model/player_view_model.dart';
-import 'player_mini_bar.dart';
 
 class PlayerScreen extends StatefulWidget {
-  const PlayerScreen({super.key, required this.viewModel});
+  const PlayerScreen({super.key, required this.viewModel, this.onClose});
   final PlayerViewModel viewModel;
+  final VoidCallback? onClose;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  bool _expanded = true;
   bool _visualizerEnabled = false;
   String? _lastErrorToastToken;
+  double _closeDragDy = 0;
 
   @override
   void dispose() {
@@ -57,85 +57,116 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ParseFailure() => l10n.playbackErrorInvalidData,
       };
 
+  void _closePlayer() {
+    final onClose = widget.onClose;
+    if (onClose != null) {
+      onClose();
+      return;
+    }
+    Navigator.of(context).maybePop();
+  }
+
+  void _handleCloseDragStart(DragStartDetails _) {
+    _closeDragDy = 0;
+  }
+
+  void _handleCloseDragUpdate(DragUpdateDetails details) {
+    _closeDragDy += details.primaryDelta ?? 0;
+  }
+
+  void _handleCloseDragEnd(DragEndDetails _) {
+    if (_closeDragDy >= 48) {
+      _closePlayer();
+    }
+    _closeDragDy = 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.nowPlaying),
-        actions: [
-          IconButton(
-            icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-            key: const Key('player-expand-toggle'),
-            onPressed: () => setState(() => _expanded = !_expanded),
+    return PopScope(
+      canPop: widget.onClose == null,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _closePlayer();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: GestureDetector(
+            key: const Key('player-close-drag-area'),
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragStart: _handleCloseDragStart,
+            onVerticalDragUpdate: _handleCloseDragUpdate,
+            onVerticalDragEnd: _handleCloseDragEnd,
+            child: IconButton(
+              key: const Key('player-close-button'),
+              icon: const Icon(Icons.keyboard_arrow_down),
+              onPressed: _closePlayer,
+            ),
           ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ListenableBuilder(
-          listenable: widget.viewModel,
-          builder: (context, _) {
-            final vm = widget.viewModel;
-            final track = vm.snapshot.currentTrack;
-            if (!vm.shouldShowErrorBanner) {
-              _lastErrorToastToken = null;
-            }
+          title: Text(l10n.nowPlaying),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: ListenableBuilder(
+            listenable: widget.viewModel,
+            builder: (context, _) {
+              final vm = widget.viewModel;
+              final track = vm.snapshot.currentTrack;
+              if (!vm.shouldShowErrorBanner) {
+                _lastErrorToastToken = null;
+              }
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (vm.shouldShowErrorBanner) ...[
-                  Builder(
-                    builder: (context) {
-                      final errorToken = vm.latestErrorToken;
-                      if (errorToken != null &&
-                          errorToken != _lastErrorToastToken) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).clearSnackBars();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                _errorText(l10n, vm.snapshot.error!),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (vm.shouldShowErrorBanner) ...[
+                    Builder(
+                      builder: (context) {
+                        final errorToken = vm.latestErrorToken;
+                        if (errorToken != null &&
+                            errorToken != _lastErrorToastToken) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).clearSnackBars();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _errorText(l10n, vm.snapshot.error!),
+                                ),
+                                duration: const Duration(seconds: 4),
                               ),
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        });
-                        _lastErrorToastToken = errorToken;
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                  MaterialBanner(
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.errorContainer,
-                    content: Text(_errorText(l10n, vm.snapshot.error!)),
-                    actions: [
-                      TextButton(
-                        onPressed: vm.dismissError,
-                        child: Text(l10n.playerDismiss),
-                      ),
-                    ],
-                  ),
-                ],
-                if (track == null)
-                  Expanded(child: Center(child: Text(l10n.playerNoTrackLoaded)))
-                else if (!_expanded)
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [PlayerMiniBar(viewModel: vm)],
+                            );
+                          });
+                          _lastErrorToastToken = errorToken;
+                        }
+                        return const SizedBox.shrink();
+                      },
                     ),
-                  )
-                else
-                  Expanded(child: _buildExpandedBody(vm, l10n)),
-              ],
-            );
-          },
+                    MaterialBanner(
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.errorContainer,
+                      content: Text(_errorText(l10n, vm.snapshot.error!)),
+                      actions: [
+                        TextButton(
+                          onPressed: vm.dismissError,
+                          child: Text(l10n.playerDismiss),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (track == null)
+                    Expanded(
+                      child: Center(child: Text(l10n.playerNoTrackLoaded)),
+                    )
+                  else
+                    Expanded(child: _buildExpandedBody(vm, l10n)),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
