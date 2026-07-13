@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,6 @@ import 'package:edmm/domain/repositories/track_repository.dart';
 import 'package:edmm/domain/result.dart';
 import 'package:edmm/ui/catalog_search/view_model/catalog_search_view_model.dart';
 import 'package:edmm/ui/catalog_search/widgets/catalog_search_screen.dart';
-import 'package:edmm/ui/player/view_model/player_view_model.dart';
 
 Track _t(String id) => Track(
   id: id,
@@ -21,7 +21,7 @@ Track _t(String id) => Track(
   artistId: 'a',
   artistName: 'Artist',
   durationMs: 1,
-  streamUrl: 'u',
+  streamUrl: 'https://audio.example/$id.m4a',
   metadata: const {'resourceType': 'video'},
 );
 
@@ -51,7 +51,8 @@ class _Audio implements AudioController {
   @override
   double get volume => 1.0;
   @override
-  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+  Future<bool> loadQueue(List<Track> tracks, {int initialIndex = 0}) async =>
+      true;
   @override
   Future<void> setShuffleEnabled(bool enabled) async {}
   @override
@@ -90,17 +91,70 @@ CatalogSearchViewModel _vm(
   searchDebounce: Duration.zero,
 );
 
-Widget _host(Widget child) => MaterialApp(
+Widget _host(Widget child, {double textScale = 1}) => MaterialApp(
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   supportedLocales: AppLocalizations.supportedLocales,
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(
+      context,
+    ).copyWith(textScaler: TextScaler.linear(textScale)),
+    child: child!,
+  ),
   home: child,
 );
 
 void main() {
+  testWidgets('catalog tabs preserve dynamic type and expose selected state', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 568));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final semantics = tester.ensureSemantics();
+    final vm = _vm((c, q) => Ok([_t('1'), _t('2')]));
+
+    await tester.pumpWidget(
+      _host(
+        CatalogSearchScreen(viewModel: vm, onPlay: (_, _) {}),
+        textScale: 2,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(FittedBox), findsNothing);
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('catalog-tab-pop')))
+          .flagsCollection
+          .isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('catalog-tab-edm')))
+          .flagsCollection
+          .isSelected,
+      Tristate.isFalse,
+    );
+
+    await tester.tap(find.byKey(const Key('catalog-tab-edm')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('catalog-tab-edm')))
+          .flagsCollection
+          .isSelected,
+      Tristate.isTrue,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('renders rows and delegates onPlay on tap', (tester) async {
     final vm = _vm((c, q) => Ok([_t('1'), _t('2')]));
     List<Track>? queue;
     int? index;
+    var libraryOpens = 0;
+    Track? openedTrack;
     await tester.pumpWidget(
       _host(
         CatalogSearchScreen(
@@ -109,57 +163,43 @@ void main() {
             queue = q;
             index = i;
           },
+          onOpenLibrary: () => libraryOpens++,
+          onOpenTrack: (track) => openedTrack = track,
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Song 1'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('catalog-open-library')));
+    expect(libraryOpens, 1);
+    await tester.tap(find.byKey(const Key('catalog-track-detail-1')));
+    expect(openedTrack?.id, '1');
     await tester.tap(find.text('Song 2'));
     expect(index, 1);
     expect(queue!.length, 2);
   });
 
-  testWidgets('shows the mini player below search results during playback', (
+  testWidgets('disables tapping a row with an unplayable stream URL', (
     tester,
   ) async {
-    final audio = _Audio();
-    final catalogVm = _vm((c, q) => Ok([_t('1'), _t('2')]), audio: audio);
-    final playerVm = PlayerViewModel(audio);
-    var openPlayerCount = 0;
-
+    final unplayable = _t('broken').copyWith(streamUrl: '/relative.m4a');
+    final vm = _vm((c, q) => Ok([unplayable]));
+    var playCalls = 0;
     await tester.pumpWidget(
       _host(
-        CatalogSearchScreen(
-          viewModel: catalogVm,
-          playerViewModel: playerVm,
-          onOpenPlayer: () => openPlayerCount++,
-          onPlay: (_, _) {},
-        ),
+        CatalogSearchScreen(viewModel: vm, onPlay: (_, _) => playCalls += 1),
       ),
     );
     await tester.pumpAndSettle();
 
-    audio.emit(
-      PlaybackSnapshot(
-        currentTrack: _t('2'),
-        status: PlaybackStatus.playing,
-        duration: const Duration(minutes: 1),
-      ),
+    final tile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Song broken'),
     );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Song 1'), findsOneWidget);
-    expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
-    expect(find.text('Song 2'), findsNWidgets(2));
-
-    await tester.tap(find.byKey(const Key('player-mini-play-pause')));
+    expect(tile.onTap, isNull);
+    await tester.tap(find.text('Song broken'));
     await tester.pump();
-    expect(audio.pauses, 1);
-
-    await tester.tap(find.byKey(const Key('player-mini-open')));
-    await tester.pump();
-    expect(openPlayerCount, 1);
+    expect(playCalls, 0);
   });
 
   testWidgets('search with no results shows the clear-search action', (

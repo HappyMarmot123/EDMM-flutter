@@ -55,6 +55,7 @@ class CatalogSearchViewModel extends ChangeNotifier {
   Timer? _debounce;
   StreamSubscription<PlaybackSnapshot>? _snapshotSub;
   bool _disposed = false;
+  int _requestGeneration = 0;
 
   CatalogView get view => _view;
 
@@ -72,9 +73,9 @@ class CatalogSearchViewModel extends ChangeNotifier {
     });
 
     await Future.wait([
-      _prefetchBaseCatalog(CatalogView.pop),
-      _prefetchBaseCatalog(CatalogView.edm),
-      _prefetchRecentCount(),
+      _runPrefetch(() => _prefetchBaseCatalog(CatalogView.pop)),
+      _runPrefetch(() => _prefetchBaseCatalog(CatalogView.edm)),
+      _runPrefetch(_prefetchRecentCount),
     ]);
 
     if (_initialTrackId != null && !_hasExplicitInitialView) {
@@ -143,12 +144,15 @@ class CatalogSearchViewModel extends ChangeNotifier {
     bool forceRefresh = false,
     bool isRetry = false,
   }) async {
+    final requestGeneration = ++_requestGeneration;
+    final requestedView = _view;
+    final requestedQuery = _appliedQuery;
     _telemetry.emit(
       CatalogSearchTelemetryEvent(
         name: CatalogSearchTelemetryEventNames.requested,
         payload: CatalogSearchTelemetryPayload.base(
-          view: _view.name,
-          query: _appliedQuery,
+          view: requestedView.name,
+          query: requestedQuery,
           isRetry: isRetry,
           forceRefresh: forceRefresh,
         ),
@@ -160,8 +164,8 @@ class CatalogSearchViewModel extends ChangeNotifier {
           name: CatalogSearchTelemetryEventNames.retryRequested,
           payload: {
             ...CatalogSearchTelemetryPayload.base(
-              view: _view.name,
-              query: _appliedQuery,
+              view: requestedView.name,
+              query: requestedQuery,
               isRetry: true,
               forceRefresh: forceRefresh,
             ),
@@ -177,28 +181,48 @@ class CatalogSearchViewModel extends ChangeNotifier {
     error = null;
     notifyListeners();
 
-    final category = _view._remoteCategory;
+    final category = requestedView._remoteCategory;
     if (category == null) {
-      await _loadRecent();
+      try {
+        await _loadRecent(
+          generation: requestGeneration,
+          view: requestedView,
+          query: requestedQuery,
+        );
+      } catch (cause) {
+        if (_isActiveRequest(
+          requestGeneration,
+          requestedView,
+          requestedQuery,
+        )) {
+          _applyRecentFailure(requestedView, requestedQuery, cause);
+        }
+      }
+      if (!_isActiveRequest(requestGeneration, requestedView, requestedQuery)) {
+        return;
+      }
       notifyListeners();
       return;
     }
 
     final result = await _repo.getCatalog(
       category: category,
-      query: _appliedQuery,
+      query: requestedQuery,
       forceRefresh: forceRefresh,
     );
+    if (!_isActiveRequest(requestGeneration, requestedView, requestedQuery)) {
+      return;
+    }
 
     switch (result) {
       case Ok(:final value):
-        _lastSuccessful = {..._lastSuccessful, _view: value};
+        _lastSuccessful = {..._lastSuccessful, requestedView: value};
         _telemetry.emit(
           CatalogSearchTelemetryEvent(
             name: CatalogSearchTelemetryEventNames.succeeded,
             payload: CatalogSearchTelemetryPayload.successPayload(
-              view: _view.name,
-              query: _appliedQuery,
+              view: requestedView.name,
+              query: requestedQuery,
               resultCount: value.length,
             ),
           ),
@@ -206,15 +230,15 @@ class CatalogSearchViewModel extends ChangeNotifier {
         tracks = value;
         error = null;
         if (value.isEmpty) {
-          status = _appliedQuery.isEmpty
+          status = requestedQuery.isEmpty
               ? CatalogStatus.empty
               : CatalogStatus.searchEmpty;
         } else {
           status = CatalogStatus.data;
         }
       case Err(error: final failure):
-        final hadStale = _lastSuccessful.containsKey(_view);
-        final staleTracks = _lastSuccessful[_view];
+        final hadStale = _lastSuccessful.containsKey(requestedView);
+        final staleTracks = _lastSuccessful[requestedView];
 
         if (hadStale) {
           tracks = staleTracks ?? const [];
@@ -223,8 +247,8 @@ class CatalogSearchViewModel extends ChangeNotifier {
               name: CatalogSearchTelemetryEventNames.staleFallbackUsed,
               payload: {
                 ...CatalogSearchTelemetryPayload.base(
-                  view: _view.name,
-                  query: _appliedQuery,
+                  view: requestedView.name,
+                  query: requestedQuery,
                 ),
                 CatalogSearchTelemetryPayload.staleFallback: true,
                 CatalogSearchTelemetryPayload.resultCount:
@@ -239,8 +263,8 @@ class CatalogSearchViewModel extends ChangeNotifier {
         error = failure;
         status = CatalogStatus.error;
         final failurePayload = CatalogSearchTelemetryPayload.failurePayload(
-          view: _view.name,
-          query: _appliedQuery,
+          view: requestedView.name,
+          query: requestedQuery,
           failure: failure,
           staleFallback: hadStale,
         );
@@ -260,31 +284,73 @@ class CatalogSearchViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _loadRecent() async {
+  Future<void> _loadRecent({
+    required int generation,
+    required CatalogView view,
+    required String query,
+  }) async {
     final recentIds = await _localLibrary.getRecentTrackIds();
     final cachedTracks = await _localLibrary.getCachedTracks(recentIds);
-    final filteredTracks = _filterLocalTracks(cachedTracks, _appliedQuery);
+    if (!_isActiveRequest(generation, view, query)) return;
+    final filteredTracks = _filterLocalTracks(cachedTracks, query);
 
     _lastSuccessful = {..._lastSuccessful, CatalogView.recent: cachedTracks};
     counts = {...counts, CatalogView.recent: cachedTracks.length};
     tracks = filteredTracks;
     error = null;
     status = filteredTracks.isEmpty
-        ? (_appliedQuery.isEmpty
-              ? CatalogStatus.empty
-              : CatalogStatus.searchEmpty)
+        ? (query.isEmpty ? CatalogStatus.empty : CatalogStatus.searchEmpty)
         : CatalogStatus.data;
     _telemetry.emit(
       CatalogSearchTelemetryEvent(
         name: CatalogSearchTelemetryEventNames.succeeded,
         payload: CatalogSearchTelemetryPayload.successPayload(
-          view: _view.name,
-          query: _appliedQuery,
+          view: view.name,
+          query: query,
           resultCount: filteredTracks.length,
         ),
       ),
     );
   }
+
+  Future<void> _runPrefetch(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (_) {
+      // Counts and seed detection are best-effort; the active load owns errors.
+    }
+  }
+
+  void _applyRecentFailure(CatalogView view, String query, Object cause) {
+    final failure = ParseFailure(cause);
+    final staleTracks = _lastSuccessful[view];
+    final hadStale = staleTracks != null;
+    tracks = _filterLocalTracks(staleTracks ?? const [], query);
+    error = failure;
+    status = CatalogStatus.error;
+    _telemetry.emit(
+      CatalogSearchTelemetryEvent(
+        name: CatalogSearchTelemetryEventNames.failed,
+        payload: {
+          ...CatalogSearchTelemetryPayload.failurePayload(
+            view: view.name,
+            query: query,
+            failure: failure,
+            staleFallback: hadStale,
+          ),
+          CatalogSearchTelemetryPayload.errorState: hadStale
+              ? 'error_with_stale'
+              : 'error_without_stale',
+        },
+      ),
+    );
+  }
+
+  bool _isActiveRequest(int generation, CatalogView view, String query) =>
+      !_disposed &&
+      generation == _requestGeneration &&
+      view == _view &&
+      query == _appliedQuery;
 
   List<Track> _filterLocalTracks(List<Track> source, String query) {
     final normalizedQuery = query.trim().toLowerCase();
@@ -309,6 +375,7 @@ class CatalogSearchViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _requestGeneration += 1;
     _debounce?.cancel();
     _snapshotSub?.cancel();
     super.dispose();

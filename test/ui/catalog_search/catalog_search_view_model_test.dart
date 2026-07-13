@@ -24,7 +24,10 @@ Track _t(String id) => Track(
 
 class _Repo implements TrackRepository {
   _Repo(this.handler);
-  Result<List<Track>> Function(CloudinaryCategory category, String query)
+  FutureOr<Result<List<Track>>> Function(
+    CloudinaryCategory category,
+    String query,
+  )
   handler;
   final List<String> calls = [];
 
@@ -35,7 +38,7 @@ class _Repo implements TrackRepository {
     bool forceRefresh = false,
   }) async {
     calls.add('${category.wire}|$query');
-    return handler(category, query);
+    return await handler(category, query);
   }
 }
 
@@ -50,7 +53,8 @@ class _Audio implements AudioController {
   @override
   double get volume => 1.0;
   @override
-  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+  Future<bool> loadQueue(List<Track> tracks, {int initialIndex = 0}) async =>
+      true;
   @override
   Future<void> setShuffleEnabled(bool enabled) async {}
   @override
@@ -78,6 +82,23 @@ class _TelemetryRecorder extends CatalogSearchTelemetrySink {
   void emit(CatalogSearchTelemetryEvent event) => events.add(event);
 
   void clear() => events.clear();
+}
+
+class _ThrowingRecentRepository extends InMemoryLocalLibraryRepository {
+  @override
+  Future<List<String>> getRecentTrackIds({int limit = 10}) async {
+    throw StateError('recent read failed');
+  }
+}
+
+class _FlakyRecentRepository extends InMemoryLocalLibraryRepository {
+  bool failReads = false;
+
+  @override
+  Future<List<String>> getRecentTrackIds({int limit = 10}) {
+    if (failReads) throw StateError('recent read failed');
+    return super.getRecentTrackIds(limit: limit);
+  }
 }
 
 CatalogSearchViewModel _vm(
@@ -181,6 +202,60 @@ void main() {
     expect(vm.tracks.map((track) => track.id), ['1']);
   });
 
+  test('recent repository failure is exposed as catalog error', () async {
+    final vm = _vm(
+      _Repo((c, q) => Ok([_t('${c.wire}-remote')])),
+      _Audio(),
+      initialView: CatalogView.recent,
+      localLibrary: _ThrowingRecentRepository(),
+    );
+
+    await vm.init();
+
+    expect(vm.status, CatalogStatus.error);
+    expect(vm.tracks, isEmpty);
+    expect(vm.error, isA<ParseFailure>());
+  });
+
+  test('recent stale fallback keeps the active local query filter', () async {
+    final localLibrary = _FlakyRecentRepository();
+    await localLibrary.cacheTrack(_t('1'));
+    await localLibrary.cacheTrack(_t('2'));
+    await localLibrary.recordRecentPlay('1');
+    await localLibrary.recordRecentPlay('2');
+    final vm = _vm(
+      _Repo((c, q) => Ok([_t('${c.wire}-remote')])),
+      _Audio(),
+      initialView: CatalogView.recent,
+      localLibrary: localLibrary,
+    );
+    await vm.init();
+    vm.setQuery('song 1');
+    await _tick();
+    expect(vm.tracks.map((track) => track.id), ['1']);
+
+    localLibrary.failReads = true;
+    await vm.retry();
+
+    expect(vm.status, CatalogStatus.error);
+    expect(vm.tracks.map((track) => track.id), ['1']);
+  });
+
+  test('recent count prefetch failure does not break remote init', () async {
+    final vm = _vm(
+      _Repo((c, q) => Ok([_t('${c.wire}-remote')])),
+      _Audio(),
+      initialView: CatalogView.pop,
+      localLibrary: _ThrowingRecentRepository(),
+    );
+
+    await vm.init();
+
+    expect(vm.status, CatalogStatus.data);
+    expect(vm.tracks.single.id, 'pop-remote');
+    expect(vm.counts.containsKey(CatalogView.recent), isFalse);
+  });
+
   test('setQuery debounces to a single search with the final value', () async {
     final repo = _Repo((c, q) => Ok(q == 'house' ? [_t('h')] : [_t('1')]));
     final vm = CatalogSearchViewModel(
@@ -203,6 +278,64 @@ void main() {
     expect(repo.calls, ['pop|house']);
     expect(vm.tracks.single.id, 'h');
   });
+
+  test(
+    'latest query wins when search responses complete in reverse order',
+    () async {
+      final older = Completer<Result<List<Track>>>();
+      final newer = Completer<Result<List<Track>>>();
+      final repo = _Repo((c, q) {
+        if (q == 'older') return older.future;
+        if (q == 'newer') return newer.future;
+        return Ok([_t('base')]);
+      });
+      final vm = _vm(repo, _Audio());
+      await vm.init();
+
+      vm.setQuery('older');
+      await _tick();
+      vm.setQuery('newer');
+      await _tick();
+
+      newer.complete(Ok([_t('newer')]));
+      await _tick();
+      expect(vm.tracks.single.id, 'newer');
+
+      older.complete(Ok([_t('older')]));
+      await _tick();
+      expect(vm.tracks.single.id, 'newer');
+      expect(vm.query, 'newer');
+    },
+  );
+
+  test(
+    'latest view wins when catalog responses complete in reverse order',
+    () async {
+      final repo = _Repo(
+        (c, q) =>
+            Ok([_t(c == CloudinaryCategory.pop ? 'pop-base' : 'edm-base')]),
+      );
+      final vm = _vm(repo, _Audio());
+      await vm.init();
+      final olderPop = Completer<Result<List<Track>>>();
+      final newerEdm = Completer<Result<List<Track>>>();
+      repo.handler = (category, query) => category == CloudinaryCategory.pop
+          ? olderPop.future
+          : newerEdm.future;
+
+      final popLoad = vm.retry();
+      final edmLoad = vm.setView(CatalogView.edm);
+      newerEdm.complete(Ok([_t('edm-new')]));
+      await edmLoad;
+      expect(vm.view, CatalogView.edm);
+      expect(vm.tracks.single.id, 'edm-new');
+
+      olderPop.complete(Ok([_t('pop-old')]));
+      await popLoad;
+      expect(vm.view, CatalogView.edm);
+      expect(vm.tracks.single.id, 'edm-new');
+    },
+  );
 
   test('empty result with a query -> searchEmpty; clearing -> data', () async {
     final repo = _Repo((c, q) => Ok(q == 'zzz' ? <Track>[] : [_t('1')]));

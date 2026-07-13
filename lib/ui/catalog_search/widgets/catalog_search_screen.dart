@@ -3,22 +3,20 @@ import 'package:flutter/material.dart';
 import '../../../domain/models/track.dart';
 import '../../../l10n/app_localizations.dart';
 import '../view_model/catalog_search_view_model.dart';
-import '../../player/view_model/player_view_model.dart';
-import '../../player/widgets/player_mini_bar.dart';
 
 class CatalogSearchScreen extends StatefulWidget {
   const CatalogSearchScreen({
     super.key,
     required this.viewModel,
     required this.onPlay,
-    this.playerViewModel,
-    this.onOpenPlayer,
+    this.onOpenLibrary,
+    this.onOpenTrack,
   });
 
   final CatalogSearchViewModel viewModel;
   final void Function(List<Track> queue, int index) onPlay;
-  final PlayerViewModel? playerViewModel;
-  final VoidCallback? onOpenPlayer;
+  final VoidCallback? onOpenLibrary;
+  final ValueChanged<Track>? onOpenTrack;
 
   @override
   State<CatalogSearchScreen> createState() => _CatalogSearchScreenState();
@@ -42,16 +40,12 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
       oldWidget.viewModel.dispose();
       widget.viewModel.init();
     }
-    if (!identical(oldWidget.playerViewModel, widget.playerViewModel)) {
-      oldWidget.playerViewModel?.dispose();
-    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     widget.viewModel.dispose();
-    widget.playerViewModel?.dispose();
     super.dispose();
   }
 
@@ -60,13 +54,18 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.trackListTitle)),
-      bottomNavigationBar: widget.playerViewModel == null
-          ? null
-          : PlayerMiniBar(
-              viewModel: widget.playerViewModel!,
-              onOpenPlayer: widget.onOpenPlayer,
+      appBar: AppBar(
+        title: Text(l10n.trackListTitle),
+        actions: [
+          if (widget.onOpenLibrary != null)
+            IconButton(
+              key: const Key('catalog-open-library'),
+              tooltip: l10n.libraryTitle,
+              onPressed: widget.onOpenLibrary,
+              icon: const Icon(Icons.library_music),
             ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
@@ -83,68 +82,51 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
                   listenable: widget.viewModel,
                   builder: (context, _) {
                     final counts = widget.viewModel.counts;
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () =>
-                                widget.viewModel.setView(CatalogView.pop),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  widget.viewModel.view == CatalogView.pop
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.primaryContainer
-                                  : null,
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        const spacing = 8.0;
+                        final columnCount = constraints.maxWidth < 420 ? 2 : 3;
+                        final buttonWidth =
+                            (constraints.maxWidth -
+                                (columnCount - 1) * spacing) /
+                            columnCount;
+                        return Wrap(
+                          spacing: spacing,
+                          runSpacing: spacing,
+                          children: [
+                            _CatalogTabButton(
+                              semanticKey: const Key('catalog-tab-pop'),
+                              width: buttonWidth,
+                              label:
+                                  '${l10n.tabPop} (${counts[CatalogView.pop] ?? 0})',
+                              selected:
+                                  widget.viewModel.view == CatalogView.pop,
+                              onPressed: () =>
+                                  widget.viewModel.setView(CatalogView.pop),
                             ),
-                            child: FittedBox(
-                              child: Text(
-                                '${l10n.tabPop} (${counts[CatalogView.pop] ?? 0})',
-                              ),
+                            _CatalogTabButton(
+                              semanticKey: const Key('catalog-tab-edm'),
+                              width: buttonWidth,
+                              label:
+                                  '${l10n.tabEdm} (${counts[CatalogView.edm] ?? 0})',
+                              selected:
+                                  widget.viewModel.view == CatalogView.edm,
+                              onPressed: () =>
+                                  widget.viewModel.setView(CatalogView.edm),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () =>
-                                widget.viewModel.setView(CatalogView.edm),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  widget.viewModel.view == CatalogView.edm
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.primaryContainer
-                                  : null,
+                            _CatalogTabButton(
+                              semanticKey: const Key('catalog-tab-recent'),
+                              width: buttonWidth,
+                              label:
+                                  '${l10n.tabRecent} (${counts[CatalogView.recent] ?? 0})',
+                              selected:
+                                  widget.viewModel.view == CatalogView.recent,
+                              onPressed: () =>
+                                  widget.viewModel.setView(CatalogView.recent),
                             ),
-                            child: FittedBox(
-                              child: Text(
-                                '${l10n.tabEdm} (${counts[CatalogView.edm] ?? 0})',
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () =>
-                                widget.viewModel.setView(CatalogView.recent),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  widget.viewModel.view == CatalogView.recent
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.primaryContainer
-                                  : null,
-                            ),
-                            child: FittedBox(
-                              child: Text(
-                                '${l10n.tabRecent} (${counts[CatalogView.recent] ?? 0})',
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                          ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -244,12 +226,58 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
           subtitle: Text(
             track.artistName.isEmpty ? l10n.unknownArtist : track.artistName,
           ),
-          trailing: isCurrent && vm.isCurrentPlaying
-              ? const Icon(Icons.volume_up)
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isCurrent && vm.isCurrentPlaying) const Icon(Icons.volume_up),
+              if (widget.onOpenTrack != null)
+                IconButton(
+                  key: Key('catalog-track-detail-${track.id}'),
+                  tooltip: l10n.openTrackDetails,
+                  onPressed: () => widget.onOpenTrack!(track),
+                  icon: const Icon(Icons.info_outline),
+                ),
+            ],
+          ),
+          onTap: track.isPlayable
+              ? () => widget.onPlay(vm.tracks, index)
               : null,
-          onTap: () => widget.onPlay(vm.tracks, index),
         );
       },
     );
   }
+}
+
+class _CatalogTabButton extends StatelessWidget {
+  const _CatalogTabButton({
+    required this.semanticKey,
+    required this.width,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final Key semanticKey;
+  final double width;
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: width,
+    child: Semantics(
+      key: semanticKey,
+      selected: selected,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: selected
+              ? Theme.of(context).colorScheme.primaryContainer
+              : null,
+        ),
+        child: Text(label, textAlign: TextAlign.center),
+      ),
+    ),
+  );
 }
