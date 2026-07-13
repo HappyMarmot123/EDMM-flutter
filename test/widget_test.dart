@@ -30,7 +30,8 @@ class _Audio implements AudioController {
   @override
   double get volume => 1.0;
   @override
-  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+  Future<bool> loadQueue(List<Track> tracks, {int initialIndex = 0}) async =>
+      true;
   @override
   Future<void> setShuffleEnabled(bool enabled) async {}
   @override

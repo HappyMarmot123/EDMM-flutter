@@ -6,4 +6,9 @@ void main() {
     expect(trackDetailLocation('abc'), '/track/abc');
     expect(trackDetailLocation('a b/c'), '/track/a%20b%2Fc');
   });
+
+  test('library and playlist locations are stable and typed', () {
+    expect(libraryLocation(), '/library');
+    expect(playlistDetailLocation(42), '/library/playlist/42');
+  });
 }
