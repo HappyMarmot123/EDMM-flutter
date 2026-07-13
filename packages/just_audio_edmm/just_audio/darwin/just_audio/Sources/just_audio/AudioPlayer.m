@@ -26,6 +26,7 @@
     FlutterMethodChannel *_methodChannel;
     BetterEventChannel *_eventChannel;
     BetterEventChannel *_dataEventChannel;
+    BetterEventChannel *_spectrumEventChannel;
     NSString *_playerId;
     AVQueuePlayer *_player;
     AudioSource *_audioSource;
@@ -99,6 +100,25 @@
     _allowsExternalPlayback = NO;
     _loadControl = nil;
     _darwinEqualizer = [[DarwinEqualizer alloc] init];
+    __weak __typeof__(self) weakSpectrumSelf = self;
+    _spectrumEventChannel = [[BetterEventChannel alloc]
+        initWithName:[NSMutableString stringWithFormat:@"com.ryanheise.just_audio.spectrum.%@", _playerId]
+             messenger:[registrar messenger]
+              onListen:^{
+                  __strong __typeof__(weakSpectrumSelf) strongSelf = weakSpectrumSelf;
+                  if (!strongSelf) return;
+                  [strongSelf->_darwinEqualizer
+                      startSpectrumCaptureWithHandler:^(NSDictionary<NSString *, NSObject *> *event) {
+                          __strong __typeof__(weakSpectrumSelf) eventSelf = weakSpectrumSelf;
+                          if (!eventSelf) return;
+                          [eventSelf->_spectrumEventChannel sendEvent:event];
+                      }];
+              }
+              onCancel:^{
+                  __strong __typeof__(weakSpectrumSelf) strongSelf = weakSpectrumSelf;
+                  if (!strongSelf) return;
+                  [strongSelf->_darwinEqualizer stopSpectrumCapture];
+              }];
     [self initializeDarwinAudioEffects:darwinAudioEffects];
     if (loadConfiguration != (id)[NSNull null]) {
         NSDictionary *map = loadConfiguration[@"darwinLoadControl"];
@@ -1413,6 +1433,8 @@
 }
 
 - (void)dispose:(BOOL)calledFromDealloc {
+    [_darwinEqualizer stopSpectrumCapture];
+    [_spectrumEventChannel dispose];
     if (!_player) return;
     if (_processingState != psIdle) {
         [_player pause];

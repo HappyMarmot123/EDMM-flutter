@@ -103,6 +103,7 @@ class AudioPlayer {
   /// used to cancel the subscription to the previous platform's events and
   /// subscribe to the new platform's events.
   StreamSubscription<PlayerDataMessage>? _playerDataSubscription;
+  StreamSubscription<AudioSpectrumEventMessage>? _audioSpectrumSubscription;
 
   StreamSubscription<AndroidAudioAttributes>?
       _androidAudioAttributesSubscription;
@@ -140,6 +141,8 @@ class AudioPlayer {
   final _icyMetadataSubject = BehaviorSubject<IcyMetadata?>.seeded(null);
   final _androidAudioSessionIdSubject = BehaviorSubject<int?>.seeded(null);
   final _errorSubject = PublishSubject<PlayerException>();
+  late final BehaviorSubject<AudioSpectrumSupport> _audioSpectrumSupportSubject;
+  late final StreamController<AudioSpectrumFrame> _audioSpectrumController;
 
   // independent streams
   final _playingSubject = BehaviorSubject.seeded(false);
@@ -266,6 +269,15 @@ class AudioPlayer {
           useLazyPreparation: useLazyPreparation,
           shuffleOrder: shuffleOrder,
         ) {
+    _audioSpectrumSupportSubject = BehaviorSubject<AudioSpectrumSupport>.seeded(
+      (_isAndroid() || _isDarwin())
+          ? AudioSpectrumSupport.supported
+          : AudioSpectrumSupport.unavailable,
+    );
+    _audioSpectrumController = StreamController<AudioSpectrumFrame>.broadcast(
+      onListen: _handleAudioSpectrumListen,
+      onCancel: _handleAudioSpectrumCancel,
+    );
     _audioPipeline._setup(this);
     _playlist._onAttach(this);
     if (_audioLoadConfiguration?.darwinLoadControl != null) {
@@ -635,6 +647,22 @@ class AudioPlayer {
   /// Broadcasts the current Android AudioSession ID or `null` if not set.
   Stream<int?> get androidAudioSessionIdStream =>
       _androidAudioSessionIdSubject.stream;
+
+  /// Whether decoded-PCM spectrum capture is available on the current output
+  /// path. Offload and passthrough paths may report [AudioSpectrumSupport.unavailable].
+  AudioSpectrumSupport get audioSpectrumSupport =>
+      _audioSpectrumSupportSubject.value;
+
+  /// Broadcasts decoded-PCM spectrum support updates.
+  Stream<AudioSpectrumSupport> get audioSpectrumSupportStream =>
+      _audioSpectrumSupportSubject.stream.distinct();
+
+  /// A lazy broadcast stream of normalized decoded-PCM spectrum frames.
+  ///
+  /// Native capture starts with the first listener and stops after the final
+  /// listener cancels.
+  Stream<AudioSpectrumFrame> get audioSpectrumStream =>
+      _audioSpectrumController.stream;
 
   /// A stream of errors broadcast by the player.
   Stream<PlayerException> get errorStream => _errorSubject.stream;
@@ -1403,6 +1431,54 @@ class AudioPlayer {
     _webSinkId = webSinkId;
   }
 
+  void _handleAudioSpectrumListen() {
+    final platform = _platformValue;
+    if (platform != null && platform is! _IdleAudioPlayer) {
+      unawaited(_subscribeToAudioSpectrum(platform));
+    }
+  }
+
+  void _handleAudioSpectrumCancel() {
+    if (_audioSpectrumController.hasListener) return;
+    final subscription = _audioSpectrumSubscription;
+    _audioSpectrumSubscription = null;
+    unawaited(subscription?.cancel() ?? Future<void>.value());
+  }
+
+  Future<void> _subscribeToAudioSpectrum(AudioPlayerPlatform platform) async {
+    await _audioSpectrumSubscription?.cancel();
+    _audioSpectrumSubscription = null;
+    if (_disposed ||
+        !_audioSpectrumController.hasListener ||
+        platform is _IdleAudioPlayer ||
+        platform != _platformValue) {
+      return;
+    }
+    _audioSpectrumSubscription =
+        platform.audioSpectrumEventMessageStream.listen(
+      (event) {
+        if (!_audioSpectrumSupportSubject.isClosed) {
+          final isPendingPcm =
+              !event.available && event.unavailableReason == 'pcmUnavailable';
+          _audioSpectrumSupportSubject.add(
+            event.available || isPendingPcm
+                ? AudioSpectrumSupport.supported
+                : AudioSpectrumSupport.unavailable,
+          );
+        }
+        final frame = event.frame;
+        if (frame != null && !_audioSpectrumController.isClosed) {
+          _audioSpectrumController.add(AudioSpectrumFrame._fromMessage(frame));
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_audioSpectrumSupportSubject.isClosed) {
+          _audioSpectrumSupportSubject.add(AudioSpectrumSupport.unavailable);
+        }
+      },
+    );
+  }
+
   /// Releases all resources associated with this player. You must invoke this
   /// after you are done with the player.
   Future<void> dispose() {
@@ -1426,6 +1502,7 @@ class AudioPlayer {
       _proxy.stop();
       await _playerDataSubscription?.cancel();
       await _playbackEventSubscription?.cancel();
+      await _audioSpectrumSubscription?.cancel();
       await _androidAudioAttributesSubscription?.cancel();
       await _becomingNoisyEventSubscription?.cancel();
       await _interruptionEventSubscription?.cancel();
@@ -1451,6 +1528,8 @@ class AudioPlayer {
       await _icyMetadataSubject.close();
       await _androidAudioSessionIdSubject.close();
       await _errorSubject.close();
+      await _audioSpectrumController.close();
+      await _audioSpectrumSupportSubject.close();
       await _playerStateSubject.close();
       await _skipSilenceEnabledSubject.close();
       await _positionDiscontinuitySubject.close();
@@ -1597,6 +1676,9 @@ class AudioPlayer {
           _setPlatformActive(false)?.catchError((dynamic e) async => null);
         }
       }, onError: (Object e, [StackTrace? st]) {});
+      if (_audioSpectrumController.hasListener) {
+        unawaited(_subscribeToAudioSpectrum(platform));
+      }
     }
 
     Future<AudioPlayerPlatform> setPlatform() async {
@@ -1623,6 +1705,10 @@ class AudioPlayer {
         }
         if (_playerDataSubscription != null) {
           await _playerDataSubscription!.cancel();
+        }
+        if (_audioSpectrumSubscription != null) {
+          await _audioSpectrumSubscription!.cancel();
+          _audioSpectrumSubscription = null;
         }
 
         if (!force) {
@@ -4018,6 +4104,29 @@ class DefaultShuffleOrder extends ShuffleOrder {
 
 /// An enumeration of modes that can be passed to [AudioPlayer.setLoopMode].
 enum LoopMode { off, one, all }
+
+/// Availability of decoded-PCM spectrum capture for the current output path.
+enum AudioSpectrumSupport { supported, unavailable }
+
+/// A normalized spectrum frame derived from decoded PCM.
+class AudioSpectrumFrame {
+  AudioSpectrumFrame._({
+    required this.sampleRate,
+    required this.timestamp,
+    required List<double> magnitudes,
+  }) : magnitudes = List<double>.unmodifiable(magnitudes);
+
+  final int sampleRate;
+  final Duration timestamp;
+  final List<double> magnitudes;
+
+  static AudioSpectrumFrame _fromMessage(AudioSpectrumFrameMessage message) =>
+      AudioSpectrumFrame._(
+        sampleRate: message.sampleRate,
+        timestamp: message.timestamp,
+        magnitudes: message.magnitudes,
+      );
+}
 
 /// Possible values that can be passed to [AudioPlayer.setWebCrossOrigin].
 enum WebCrossOrigin { anonymous, useCredentials }

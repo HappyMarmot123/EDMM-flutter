@@ -39,6 +39,27 @@ void main() {
     },
   );
 
+  test('Darwin preset transitions ramp out before applying all band gains', () {
+    final text = source.readAsStringSync();
+    final block = text.substring(
+      text.indexOf('Future<void> _applyDarwinEqualizerPreset'),
+      text.indexOf(
+        '\n  @override',
+        text.indexOf('Future<void> _applyDarwinEqualizerPreset'),
+      ),
+    );
+    final disable = block.indexOf('await _darwinEqualizer.setEnabled(false)');
+    final bandLoop = block.indexOf('for (final band in parameters.bands)');
+    final restore = block.lastIndexOf(
+      'await _darwinEqualizer.setEnabled(preset.appliesProcessing)',
+    );
+
+    expect(disable, isNonNegative);
+    expect(bandLoop, greaterThan(disable));
+    expect(restore, greaterThan(bandLoop));
+    expect(block, contains('_darwinEqualizerTransitionDuration'));
+  });
+
   test('player UI exposes presets instead of manual band sliders', () {
     final screenText = playerScreen.readAsStringSync();
     final arbText = englishArb.readAsStringSync();

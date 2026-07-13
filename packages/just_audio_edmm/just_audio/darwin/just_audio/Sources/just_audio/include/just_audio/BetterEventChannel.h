@@ -8,6 +8,10 @@
 @interface BetterEventChannel : NSObject<FlutterStreamHandler>
 
 - (instancetype)initWithName:(NSString*)name messenger:(NSObject<FlutterBinaryMessenger> *)messenger;
+- (instancetype)initWithName:(NSString*)name
+                   messenger:(NSObject<FlutterBinaryMessenger> *)messenger
+                    onListen:(void (^)(void))onListen
+                    onCancel:(void (^)(void))onCancel;
 - (void)sendEvent:(id)event;
 - (void)dispose;
 

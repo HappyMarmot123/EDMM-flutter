@@ -26,9 +26,13 @@ import androidx.media3.common.Tracks;
 import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences;
 import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.exoplayer.NoSampleRenderer;
 import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RenderersFactory;
+import androidx.media3.exoplayer.audio.AudioSink;
+import androidx.media3.exoplayer.audio.DefaultAudioSink;
+import androidx.media3.exoplayer.audio.TeeAudioProcessor;
 import androidx.media3.extractor.DefaultExtractorsFactory;
 import androidx.media3.common.Metadata;
 import androidx.media3.exoplayer.metadata.MetadataOutput;
@@ -81,6 +85,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private final MethodChannel methodChannel;
     private final BetterEventChannel eventChannel;
     private final BetterEventChannel dataEventChannel;
+    private final BetterEventChannel spectrumEventChannel;
+    private final SpectrumAudioBufferSink spectrumAudioBufferSink;
+    private final TeeAudioProcessor spectrumAudioProcessor;
+    private final boolean spectrumUnavailableForOffload;
 
     private ProcessingState processingState;
     private long updatePosition;
@@ -154,6 +162,12 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         this.rawAudioEffects = rawAudioEffects;
         this.offloadSchedulingEnabled = offloadSchedulingEnabled != null ? offloadSchedulingEnabled : false;
         this.useLazyPreparation = useLazyPreparation;
+        Integer requestedOffloadMode = audioOffloadPreferences == null
+            ? null
+            : (Integer)audioOffloadPreferences.get("audioOffloadMode");
+        this.spectrumUnavailableForOffload = this.offloadSchedulingEnabled ||
+            (requestedOffloadMode != null &&
+                requestedOffloadMode != AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED);
 
         if (audioOffloadPreferences != null) {
             this.audioOffloadPreferences = new AudioOffloadPreferences.Builder()
@@ -176,6 +190,16 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         methodChannel.setMethodCallHandler(this);
         eventChannel = new BetterEventChannel(messenger, "com.ryanheise.just_audio.events." + id);
         dataEventChannel = new BetterEventChannel(messenger, "com.ryanheise.just_audio.data." + id);
+        spectrumAudioBufferSink = new SpectrumAudioBufferSink(
+            handler,
+            this::sendSpectrumEvent);
+        spectrumAudioProcessor = new TeeAudioProcessor(spectrumAudioBufferSink);
+        spectrumEventChannel = new BetterEventChannel(
+            messenger,
+            "com.ryanheise.just_audio.spectrum." + id,
+            () -> spectrumAudioBufferSink.startCapture(
+                spectrumUnavailableForOffload ? "offloadOrPassthrough" : null),
+            spectrumAudioBufferSink::stopCapture);
         processingState = ProcessingState.idle;
         if (audioLoadConfiguration != null) {
             Map<?, ?> loadControlMap = (Map<?, ?>)audioLoadConfiguration.get("androidLoadControl");
@@ -777,7 +801,27 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private void ensurePlayerInitialized() {
         if (player == null) {
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
-                Renderer[] defaultRenderers = new DefaultRenderersFactory(context)
+                // Preserve requested offload behavior: installing a PCM
+                // processor can make Media3 leave the offload path.
+                DefaultRenderersFactory spectrumRenderersFactory;
+                if (spectrumUnavailableForOffload) {
+                    spectrumRenderersFactory = new DefaultRenderersFactory(context);
+                } else {
+                    spectrumRenderersFactory = new DefaultRenderersFactory(context) {
+                        @Override
+                        protected AudioSink buildAudioSink(
+                                Context context,
+                                boolean enableFloatOutput,
+                                boolean enableAudioTrackPlaybackParams) {
+                            return new DefaultAudioSink.Builder(context)
+                                .setEnableFloatOutput(enableFloatOutput)
+                                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                                .setAudioProcessors(new AudioProcessor[] { spectrumAudioProcessor })
+                                .build();
+                        }
+                    };
+                }
+                Renderer[] defaultRenderers = spectrumRenderersFactory
                     .createRenderers(eventHandler, videoListener, audioListener, textOutput, metadataOutput);
                 Renderer[] allRenderers = Arrays.copyOf(defaultRenderers, defaultRenderers.length + 1);
                 allRenderers[defaultRenderers.length] = new ObserverRenderer();
@@ -817,6 +861,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         } else {
             player.setAudioAttributes(audioAttributes, false);
         }
+    }
+
+    private void sendSpectrumEvent(Map<String, Object> event) {
+        spectrumEventChannel.success(event);
     }
 
     private void audioEffectSetEnabled(String type, boolean enabled) {
@@ -1056,6 +1104,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         }
         mediaSources.clear();
         clearAudioEffects();
+        spectrumAudioBufferSink.dispose();
+        spectrumEventChannel.endOfStream();
         if (player != null) {
             player.release();
             player = null;

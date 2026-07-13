@@ -100,9 +100,13 @@
 
 - (void)attachTapToPlayerItem:(IndexedPlayerItem *)item {
     if (!_equalizer) return;
+    [_equalizer markSpectrumTapPending];
 
     NSArray<AVAssetTrack *> *audioTracks = [item.asset tracksWithMediaType:AVMediaTypeAudio];
-    if (audioTracks.count == 0) return;
+    if (audioTracks.count == 0) {
+        [_equalizer markSpectrumTapUnavailable];
+        return;
+    }
 
     NSMutableArray<AVMutableAudioMixInputParameters *> *inputParameters = [NSMutableArray arrayWithCapacity:audioTracks.count];
     for (AVAssetTrack *audioTrack in audioTracks) {
@@ -114,7 +118,10 @@
         [inputParameters addObject:trackInputParameters];
         CFRelease(tap);
     }
-    if (inputParameters.count == 0) return;
+    if (inputParameters.count == 0) {
+        [_equalizer markSpectrumTapUnavailable];
+        return;
+    }
 
     AVMutableAudioMix *audioMix = [AVMutableAudioMix audioMix];
     NSArray<AVAudioMixInputParameters *> *audioMixInputParameters = [inputParameters copy];

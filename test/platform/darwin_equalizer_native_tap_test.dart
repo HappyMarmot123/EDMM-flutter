@@ -88,6 +88,51 @@ void main() {
 
     expect(equalizer, contains('MTAudioProcessingTapCreate'));
     expect(equalizer, contains('MTAudioProcessingTapGetSourceAudio'));
+    expect(
+      equalizer,
+      isNot(contains('DarwinEqualizerAggregateLinearGain')),
+      reason: 'Band gains must not be collapsed into one broadband gain.',
+    );
+    expect(
+      equalizer,
+      isNot(contains('DarwinEqualizerApplyFloat32Gain')),
+      reason: 'Float PCM must pass through frequency-selective filters.',
+    );
+    expect(
+      equalizer,
+      isNot(contains('DarwinEqualizerApplySInt16Gain')),
+      reason: 'Int16 PCM must pass through frequency-selective filters.',
+    );
+    expect(equalizer, contains('DarwinEqualizerBiquadCoefficients'));
+    expect(equalizer, contains('DarwinEqualizerBiquadState'));
+    expect(equalizer, contains('DarwinEqualizerMakePeakingCoefficients'));
+    expect(equalizer, contains('DarwinEqualizerProcessFloat32'));
+    expect(equalizer, contains('DarwinEqualizerProcessSInt16'));
+
+    final tapPrepare = _between(
+      equalizer,
+      'static void DarwinEqualizerTapPrepare',
+      'static void DarwinEqualizerTapUnprepare',
+    );
+    expect(tapPrepare, contains('mSampleRate'));
+    expect(tapPrepare, contains('mChannelsPerFrame'));
+    expect(tapPrepare, contains('calloc'));
+
+    final tapProcess = _between(
+      equalizer,
+      'static void DarwinEqualizerTapProcess',
+      '@implementation DarwinEqualizer',
+    );
+    expect(tapProcess, contains('DarwinEqualizerRefreshCoefficients'));
+    expect(tapProcess, contains('kAudioFormatFlagIsNonInterleaved'));
+    expect(tapProcess, isNot(contains('malloc(')));
+    expect(tapProcess, isNot(contains('calloc(')));
+    expect(tapProcess, isNot(contains('free(')));
+    expect(tapProcess, isNot(contains('dispatch_')));
+    expect(tapProcess, isNot(contains('NSLock')));
+    expect(tapProcess, isNot(contains('pthread_mutex')));
+    expect(tapProcess, isNot(contains('@synchronized')));
+    expect(tapProcess, contains('wetRampFramesRemaining'));
 
     expect(uriAudioSource, contains('AVMutableAudioMix'));
     expect(uriAudioSource, contains('AVMutableAudioMixInputParameters'));

@@ -76,6 +76,13 @@ abstract class AudioPlayerPlatform {
   Stream<PlayerDataMessage> get playerDataMessageStream =>
       const Stream<PlayerDataMessage>.empty();
 
+  /// A broadcast stream of decoded-PCM spectrum availability and frames.
+  ///
+  /// Implementations should begin capture when this stream is listened to and
+  /// stop capture when the final listener is cancelled.
+  Stream<AudioSpectrumEventMessage> get audioSpectrumEventMessageStream =>
+      const Stream<AudioSpectrumEventMessage>.empty();
+
   /// Loads an audio source.
   Future<LoadResponse> load(LoadRequest request) {
     throw UnimplementedError("load() has not been implemented.");
@@ -294,6 +301,59 @@ class PlayerDataMessage {
             ? ShuffleModeMessage.values[map['shuffleMode'] as int]
             : null,
       );
+}
+
+/// A normalized spectrum frame derived from decoded PCM.
+class AudioSpectrumFrameMessage {
+  final int sampleRate;
+  final Duration timestamp;
+  final List<double> magnitudes;
+
+  AudioSpectrumFrameMessage({
+    required this.sampleRate,
+    required this.timestamp,
+    required List<double> magnitudes,
+  }) : magnitudes = List<double>.unmodifiable(magnitudes);
+
+  static AudioSpectrumFrameMessage fromMap(Map<dynamic, dynamic> map) {
+    final rawMagnitudes = map['magnitudes'] as List<dynamic>;
+    return AudioSpectrumFrameMessage(
+      sampleRate: map['sampleRate'] as int,
+      timestamp: Duration(microseconds: map['timestamp'] as int),
+      magnitudes: rawMagnitudes
+          .map(
+            (dynamic magnitude) =>
+                (magnitude as num).toDouble().clamp(0.0, 1.0).toDouble(),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+/// An availability update and optional decoded-PCM spectrum frame.
+class AudioSpectrumEventMessage {
+  final bool available;
+  final String? unavailableReason;
+  final AudioSpectrumFrameMessage? frame;
+
+  AudioSpectrumEventMessage({
+    required this.available,
+    required this.unavailableReason,
+    required this.frame,
+  });
+
+  static AudioSpectrumEventMessage fromMap(Map<dynamic, dynamic> map) {
+    final available = map['available'] == true;
+    final hasFrame = available &&
+        map['sampleRate'] is int &&
+        map['timestamp'] is int &&
+        map['magnitudes'] is List<dynamic>;
+    return AudioSpectrumEventMessage(
+      available: available,
+      unavailableReason: map['reason'] as String?,
+      frame: hasFrame ? AudioSpectrumFrameMessage.fromMap(map) : null,
+    );
+  }
 }
 
 /// A playback event communicated from the platform implementation to the

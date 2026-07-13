@@ -89,6 +89,93 @@ void runTests() {
     await player.dispose();
   });
 
+  test('decoded PCM spectrum capture follows public stream subscriptions',
+      () async {
+    final player = AudioPlayer();
+    await player.setUrl('https://foo.foo/spectrum.mp3');
+    final nativePlayer = mock.mostRecentPlayer!;
+    expect(nativePlayer.spectrumListenCount, 0);
+
+    final frameFuture = player.audioSpectrumStream.first;
+    await Future<void>.delayed(Duration.zero);
+    expect(nativePlayer.spectrumListenCount, 1);
+    nativePlayer.spectrumEventController.add(AudioSpectrumEventMessage(
+      available: true,
+      unavailableReason: null,
+      frame: AudioSpectrumFrameMessage(
+        sampleRate: 48000,
+        timestamp: const Duration(microseconds: 7),
+        magnitudes: List<double>.filled(24, 0.5),
+      ),
+    ));
+
+    final frame = await frameFuture;
+    expect(frame.sampleRate, 48000);
+    expect(frame.magnitudes, hasLength(24));
+    await Future<void>.delayed(Duration.zero);
+    expect(nativePlayer.spectrumCancelCount, 1);
+    await player.dispose();
+  });
+
+  test('transient PCM unavailability keeps capture subscribed until recovery',
+      () async {
+    final player = AudioPlayer();
+    await player.setUrl('https://foo.foo/spectrum-recovery.mp3');
+    final nativePlayer = mock.mostRecentPlayer!;
+    final frames = <AudioSpectrumFrame>[];
+
+    final subscription = player.audioSpectrumStream.listen(frames.add);
+    await Future<void>.delayed(Duration.zero);
+    expect(nativePlayer.spectrumListenCount, 1);
+
+    nativePlayer.spectrumEventController.add(AudioSpectrumEventMessage(
+      available: false,
+      unavailableReason: 'pcmUnavailable',
+      frame: null,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(player.audioSpectrumSupport, AudioSpectrumSupport.supported);
+    expect(nativePlayer.spectrumCancelCount, 0);
+
+    nativePlayer.spectrumEventController.add(AudioSpectrumEventMessage(
+      available: true,
+      unavailableReason: null,
+      frame: AudioSpectrumFrameMessage(
+        sampleRate: 48000,
+        timestamp: const Duration(microseconds: 11),
+        magnitudes: List<double>.filled(24, 0.25),
+      ),
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(frames, hasLength(1));
+    expect(player.audioSpectrumSupport, AudioSpectrumSupport.supported);
+    await subscription.cancel();
+    await Future<void>.delayed(Duration.zero);
+    expect(nativePlayer.spectrumCancelCount, 1);
+    await player.dispose();
+  });
+
+  test('offload spectrum unavailability remains explicit', () async {
+    final player = AudioPlayer();
+    await player.setUrl('https://foo.foo/offload.mp3');
+    final nativePlayer = mock.mostRecentPlayer!;
+
+    final subscription = player.audioSpectrumStream.listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    nativePlayer.spectrumEventController.add(AudioSpectrumEventMessage(
+      available: false,
+      unavailableReason: 'offloadOrPassthrough',
+      frame: null,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(player.audioSpectrumSupport, AudioSpectrumSupport.unavailable);
+    await subscription.cancel();
+    await player.dispose();
+  });
+
   test('assets', () async {
     final player = AudioPlayer();
     void expectAsset(String uri, {dynamic tag}) {
@@ -1908,6 +1995,10 @@ final icyMetadataMessage = IcyMetadataMessage(
 class MockAudioPlayer extends AudioPlayerPlatform {
   final eventController = StreamController<PlaybackEventMessage>();
   final dataMessageController = StreamController<PlayerDataMessage>();
+  late final StreamController<AudioSpectrumEventMessage>
+      spectrumEventController;
+  int spectrumListenCount = 0;
+  int spectrumCancelCount = 0;
   final AudioLoadConfigurationMessage? audioLoadConfiguration;
   final List<AudioEffectMessage> darwinAudioEffects;
   final audioEffectSetEnabledRequests = <AudioEffectSetEnabledRequest>[];
@@ -1934,7 +2025,13 @@ class MockAudioPlayer extends AudioPlayerPlatform {
   MockAudioPlayer(InitRequest request)
       : audioLoadConfiguration = request.audioLoadConfiguration,
         darwinAudioEffects = request.darwinAudioEffects,
-        super(request.id);
+        super(request.id) {
+    spectrumEventController =
+        StreamController<AudioSpectrumEventMessage>.broadcast(
+      onListen: () => spectrumListenCount++,
+      onCancel: () => spectrumCancelCount++,
+    );
+  }
 
   @override
   Stream<PlayerDataMessage> get playerDataMessageStream =>
@@ -1943,6 +2040,10 @@ class MockAudioPlayer extends AudioPlayerPlatform {
   @override
   Stream<PlaybackEventMessage> get playbackEventMessageStream =>
       eventController.stream;
+
+  @override
+  Stream<AudioSpectrumEventMessage> get audioSpectrumEventMessageStream =>
+      spectrumEventController.stream;
 
   void _broadcastDataMessage(PlayerDataMessage message) {
     dataMessageController.add(message);
