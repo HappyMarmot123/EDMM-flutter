@@ -5,6 +5,10 @@ Flutter mobile client for the EDMM music catalog and player.
 Android bundle budgets and investigation steps are documented in
 [`docs/android-app-bundle-size-strategy.md`](docs/android-app-bundle-size-strategy.md).
 
+The playlist and favorites removal decision, including its irreversible local
+data migration, is documented in
+[`docs/collection-features-removal.md`](docs/collection-features-removal.md).
+
 
 1. 먼저 앱 실행 준비
 

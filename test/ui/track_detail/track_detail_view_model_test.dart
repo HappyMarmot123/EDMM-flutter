@@ -30,17 +30,6 @@ class _EmptyTracks implements TrackRepository {
   }) async => const Ok([]);
 }
 
-class _DelayedFavoriteLibrary extends InMemoryLocalLibraryRepository {
-  final favoriteRead = Completer<bool>();
-  var reads = 0;
-
-  @override
-  Future<bool> isFavorite(String trackId) {
-    if (reads++ == 0) return favoriteRead.future;
-    return super.isFavorite(trackId);
-  }
-}
-
 class _SequencedTracks implements TrackRepository {
   final responses = <Completer<Result<List<Track>>>>[];
   var calls = 0;
@@ -53,13 +42,10 @@ class _SequencedTracks implements TrackRepository {
   }) => responses[calls++].future;
 }
 
-class _DelayedPlaylistAddLibrary extends InMemoryLocalLibraryRepository {
-  final addGate = Completer<void>();
-
+class _FailingCacheLibrary extends InMemoryLocalLibraryRepository {
   @override
-  Future<bool> addTrackToPlaylist(int playlistId, String trackId) async {
-    await addGate.future;
-    return super.addTrackToPlaylist(playlistId, trackId);
+  Future<void> cacheTrack(Track track) async {
+    throw StateError('storage');
   }
 }
 
@@ -77,10 +63,9 @@ void main() {
 
     expect(vm.status, TrackDetailStatus.data);
     expect(vm.track?.title, 'Bloom');
-    expect(vm.isFavorite, isFalse);
   });
 
-  test('an initial route seed is available before asynchronous init', () async {
+  test('an initial route seed is available and cached during init', () async {
     final local = InMemoryLocalLibraryRepository();
     final vm = TrackDetailViewModel(
       trackId: 'track-1',
@@ -93,10 +78,11 @@ void main() {
     expect(vm.track?.title, 'Bloom');
     await vm.init();
     expect(vm.status, TrackDetailStatus.data);
+    expect((await local.getCachedTrack('track-1'))?.title, 'Bloom');
   });
 
-  test('seed library load cannot overwrite a newer favorite toggle', () async {
-    final local = _DelayedFavoriteLibrary();
+  test('seed cache failures are exposed without hiding detail', () async {
+    final local = _FailingCacheLibrary();
     final vm = TrackDetailViewModel(
       trackId: 'track-1',
       initialTrack: _track(),
@@ -104,14 +90,11 @@ void main() {
       localLibrary: local,
     );
 
-    final initialLoad = vm.init();
-    await Future<void>.delayed(Duration.zero);
-    expect(await vm.toggleFavorite(), isTrue);
-    local.favoriteRead.complete(false);
-    await initialLoad;
+    await vm.init();
 
-    expect(vm.isFavorite, isTrue);
-    expect(await local.isFavorite('track-1'), isTrue);
+    expect(vm.status, TrackDetailStatus.data);
+    expect(vm.track?.title, 'Bloom');
+    expect(vm.storageError, isA<StateError>());
   });
 
   test('detail ignores an older resolution that completes last', () async {
@@ -136,61 +119,5 @@ void main() {
 
     expect(vm.track?.title, 'New');
     expect((await local.getCachedTrack('track-1'))?.title, 'New');
-  });
-
-  test('toggles favorite and caches before adding to a playlist', () async {
-    final local = InMemoryLocalLibraryRepository();
-    await local.cacheTrack(_track());
-    final playlistId = await local.createPlaylist('Mix');
-    final vm = TrackDetailViewModel(
-      trackId: 'track-1',
-      resolver: TrackResolver(_EmptyTracks(), local),
-      localLibrary: local,
-    );
-    await vm.init();
-
-    expect(await vm.toggleFavorite(), isTrue);
-    expect(await local.isFavorite('track-1'), isTrue);
-    expect(await vm.addToPlaylist(playlistId), isTrue);
-    expect(await local.getPlaylistTrackIds(playlistId), ['track-1']);
-    expect((await local.getCachedTrack('track-1'))?.title, 'Bloom');
-  });
-
-  test('adding to a deleted playlist reports failure', () async {
-    final local = InMemoryLocalLibraryRepository();
-    await local.cacheTrack(_track());
-    final playlistId = await local.createPlaylist('Deleted');
-    await local.deletePlaylist(playlistId);
-    final vm = TrackDetailViewModel(
-      trackId: 'track-1',
-      resolver: TrackResolver(_EmptyTracks(), local),
-      localLibrary: local,
-    );
-    await vm.init();
-
-    expect(await vm.addToPlaylist(playlistId), isFalse);
-    expect(await local.getPlaylistTrackIds(playlistId), isEmpty);
-  });
-
-  test('favorite and playlist mutations report independent success', () async {
-    final local = _DelayedPlaylistAddLibrary();
-    await local.cacheTrack(_track());
-    final playlistId = await local.createPlaylist('Mix');
-    final vm = TrackDetailViewModel(
-      trackId: 'track-1',
-      resolver: TrackResolver(_EmptyTracks(), local),
-      localLibrary: local,
-    );
-    await vm.init();
-
-    final playlistAdd = vm.addToPlaylist(playlistId);
-    await Future<void>.delayed(Duration.zero);
-    final favoriteToggle = await vm.toggleFavorite();
-    local.addGate.complete();
-
-    expect(favoriteToggle, isTrue);
-    expect(await playlistAdd, isTrue);
-    expect(await local.isFavorite('track-1'), isTrue);
-    expect(await local.getPlaylistTrackIds(playlistId), ['track-1']);
   });
 }

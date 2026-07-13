@@ -126,7 +126,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'catalog track can be played, favorited, and added to a playlist',
+    'catalog playback, explicit detail playback, and Recent stay connected',
     (tester) async {
       final audio = _Audio();
       final localLibrary = InMemoryLocalLibraryRepository();
@@ -160,64 +160,40 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Integration Track'), findsOneWidget);
+      expect(
+        find.byKey(const Key('catalog-track-detail-integration-track')),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Integration Track'));
       await tester.pumpAndSettle();
       expect(audio.loadCalls, 1);
       expect(audio.playCalls, 1);
+      expect(await localLibrary.getRecentTrackIds(), [_track.id]);
 
       await tester.tap(
         find.byKey(const Key('catalog-track-detail-integration-track')),
       );
       await tester.pumpAndSettle();
       expect(find.text('Track details'), findsOneWidget);
+      expect(audio.loadCalls, 1);
+      expect(audio.playCalls, 1);
 
-      await tester.tap(find.byKey(const Key('track-detail-favorite')));
+      await tester.tap(find.byKey(const Key('track-detail-play')));
       await tester.pumpAndSettle();
-      expect(await localLibrary.isFavorite(_track.id), isTrue);
-
-      await tester.tap(find.byKey(const Key('track-detail-add-playlist')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('track-detail-create-playlist')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('track-detail-playlist-name')),
-        'Integration playlist',
-      );
-      await tester.tap(
-        find.byKey(const Key('track-detail-create-playlist-confirm')),
-      );
-      await tester.pumpAndSettle();
-
-      final playlists = await localLibrary.getPlaylists();
-      expect(playlists.single.name, 'Integration playlist');
-      expect(await localLibrary.getPlaylistTrackIds(playlists.single.id!), [
-        _track.id,
-      ]);
+      expect(audio.loadCalls, 2);
+      expect(audio.playCalls, 2);
+      expect(await localLibrary.getRecentTrackIds(), [_track.id]);
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('catalog-open-library')));
+      await tester.tap(find.byKey(const Key('catalog-tab-recent')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Favorites'), findsOneWidget);
       expect(
-        find.descendant(
-          of: find.byKey(const Key('library-favorites-list')),
-          matching: find.text('Integration Track'),
-        ),
+        find.byKey(const Key('catalog-track-detail-integration-track')),
         findsOneWidget,
       );
-      expect(find.text('Integration playlist'), findsOneWidget);
-      await tester.tap(find.text('Integration playlist'));
-      await tester.pumpAndSettle();
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('playlist-detail-list')),
-          matching: find.text('Integration Track'),
-        ),
-        findsOneWidget,
-      );
+      expect(await localLibrary.getRecentTrackIds(), [_track.id]);
     },
   );
 }

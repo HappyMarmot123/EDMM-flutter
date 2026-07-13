@@ -32,17 +32,11 @@ const _track = Track(
 );
 
 void main() {
-  testWidgets('playlist picker scrolls a long collection on a small surface', (
-    tester,
-  ) async {
+  testWidgets('detail remains scrollable on a small surface', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    var now = 0;
-    final local = InMemoryLocalLibraryRepository(nowMs: () => now++);
+    final local = InMemoryLocalLibraryRepository();
     await local.cacheTrack(_track);
-    for (var index = 0; index < 30; index++) {
-      await local.createPlaylist('Playlist $index');
-    }
     final vm = TrackDetailViewModel(
       trackId: _track.id,
       initialTrack: _track,
@@ -58,27 +52,17 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('track-detail-add-playlist')));
+
+    expect(tester.takeException(), isNull);
+    await tester.scrollUntilVisible(
+      find.text('Drum & Bass'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    final picker = tester.widget<ListView>(
-      find.byKey(const Key('track-detail-playlist-list')),
-    );
-    expect(picker.childrenDelegate, isA<SliverChildBuilderDelegate>());
-    expect(find.text('Playlist 0'), findsNothing);
-    await tester.scrollUntilVisible(
-      find.text('Playlist 0'),
-      400,
-      scrollable: find.byType(Scrollable).last,
-    );
-    expect(find.text('Playlist 0'), findsOneWidget);
-    expect(
-      find.byKey(const Key('track-detail-create-playlist')),
-      findsOneWidget,
-    );
+    expect(find.text('Drum & Bass'), findsOneWidget);
   });
 
   testWidgets('renders metadata and only plays after explicit Play tap', (
@@ -106,6 +90,8 @@ void main() {
     expect(find.text('Bloom'), findsOneWidget);
     expect(find.text('Feint'), findsOneWidget);
     expect(find.text('Monstercat'), findsOneWidget);
+    expect(find.byKey(const Key('track-detail-favorite')), findsNothing);
+    expect(find.byKey(const Key('track-detail-add-playlist')), findsNothing);
 
     await tester.tap(find.byKey(const Key('track-detail-play')));
     await tester.pump();
@@ -117,55 +103,5 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Drum & Bass'), findsOneWidget);
-  });
-
-  testWidgets('creates a named playlist and adds the current track', (
-    tester,
-  ) async {
-    final local = InMemoryLocalLibraryRepository();
-    await local.cacheTrack(_track);
-    final vm = TrackDetailViewModel(
-      trackId: _track.id,
-      initialTrack: _track,
-      resolver: TrackResolver(_EmptyTracks(), local),
-      localLibrary: local,
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: TrackDetailScreen(viewModel: vm, onPlay: (_) {}),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('track-detail-add-playlist')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('track-detail-create-playlist')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('track-detail-create-playlist-confirm')),
-    );
-    await tester.pump();
-    expect(find.byKey(const Key('track-detail-playlist-name')), findsOneWidget);
-    final blankField = tester.widget<TextField>(
-      find.byKey(const Key('track-detail-playlist-name')),
-    );
-    expect(blankField.decoration?.errorText, isNotNull);
-    expect(await local.getPlaylists(), isEmpty);
-
-    await tester.enterText(
-      find.byKey(const Key('track-detail-playlist-name')),
-      'Night Drive',
-    );
-    await tester.tap(
-      find.byKey(const Key('track-detail-create-playlist-confirm')),
-    );
-    await tester.pumpAndSettle();
-
-    final playlist = (await local.getPlaylists()).single;
-    expect(playlist.name, 'Night Drive');
-    expect(await local.getPlaylistTrackIds(playlist.id!), ['track-1']);
   });
 }

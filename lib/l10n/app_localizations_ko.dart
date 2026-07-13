@@ -150,43 +150,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get playbackErrorInvalidData => '재생 데이터가 올바르지 않습니다';
 
   @override
-  String get libraryTitle => '라이브러리';
-
-  @override
-  String get favoritesTitle => '즐겨찾기';
-
-  @override
-  String get favoritesEmpty => '즐겨찾기한 트랙이 없습니다';
-
-  @override
-  String get playlistsTitle => '플레이리스트';
-
-  @override
-  String get playlistsEmpty => '플레이리스트가 없습니다';
-
-  @override
-  String get playlistCreate => '플레이리스트 만들기';
-
-  @override
-  String get playlistName => '플레이리스트 이름';
-
-  @override
-  String get playlistDelete => '플레이리스트 삭제';
-
-  @override
-  String get playlistTracksEmpty => '이 플레이리스트는 비어 있습니다';
-
-  @override
-  String get playlistNotFound => '플레이리스트를 찾을 수 없습니다';
-
-  @override
-  String get removeFromPlaylist => '플레이리스트에서 제거';
-
-  @override
-  String get libraryStorageError => '로컬 라이브러리에 접근하지 못했습니다';
-
-  @override
-  String get trackUnavailable => '트랙 상세 정보를 사용할 수 없습니다';
+  String get localStorageError => '트랙 데이터를 로컬에 저장하지 못했습니다';
 
   @override
   String get trackDetailsTitle => '트랙 상세';
@@ -199,18 +163,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get trackPlay => '재생';
-
-  @override
-  String get favoriteAdd => '즐겨찾기에 추가';
-
-  @override
-  String get favoriteRemove => '즐겨찾기에서 제거';
-
-  @override
-  String get playlistAdd => '플레이리스트에 추가';
-
-  @override
-  String get playlistAdded => '플레이리스트에 추가했습니다';
 
   @override
   String get albumLabel => '앨범';

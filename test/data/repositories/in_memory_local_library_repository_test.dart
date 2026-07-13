@@ -15,45 +15,6 @@ Track _track(String id) => Track(
 );
 
 void main() {
-  test('favorites are idempotent and toggle works', () async {
-    final repo = InMemoryLocalLibraryRepository();
-    expect(await repo.isFavorite('track-1'), false);
-
-    await repo.setFavorite('track-1', true);
-    await repo.setFavorite('track-1', true);
-    expect(await repo.isFavorite('track-1'), true);
-    expect(await repo.getFavorites(), hasLength(1));
-
-    await repo.toggleFavorite('track-1');
-    expect(await repo.isFavorite('track-1'), false);
-    expect(await repo.getFavorites(), isEmpty);
-  });
-
-  test('playlists preserve track insertion order', () async {
-    final repo = InMemoryLocalLibraryRepository();
-    final playlistId = await repo.createPlaylist('Favorites');
-
-    final playlists = await repo.getPlaylists();
-    expect(playlists, hasLength(1));
-    expect(playlists.single.name, 'Favorites');
-
-    await repo.addTrackToPlaylist(playlistId, 'track-a');
-    await repo.addTrackToPlaylist(playlistId, 'track-b');
-    await repo.addTrackToPlaylist(playlistId, 'track-c');
-    await repo.addTrackToPlaylist(playlistId, 'track-b');
-    expect(await repo.getPlaylistTrackIds(playlistId), [
-      'track-a',
-      'track-b',
-      'track-c',
-    ]);
-
-    await repo.removeTrackFromPlaylist(playlistId, 'track-b');
-    expect(await repo.getPlaylistTrackIds(playlistId), ['track-a', 'track-c']);
-
-    await repo.deletePlaylist(playlistId);
-    expect(await repo.getPlaylists(), isEmpty);
-  });
-
   test('recent plays keep latest 10 and deduplicate on repeat', () async {
     final repo = InMemoryLocalLibraryRepository();
     for (var i = 0; i < 12; i++) {
@@ -110,9 +71,6 @@ void main() {
 
   test('noop local repository keeps app-safe defaults', () async {
     const repo = NoopLocalLibraryRepository();
-    expect(await repo.isFavorite('any'), false);
-    expect(await repo.getFavorites(), isEmpty);
-    expect(await repo.getPlaylists(), isEmpty);
     expect(await repo.getRecentTrackIds(), isEmpty);
     expect(await repo.getCachedTrack('any'), isNull);
     expect(await repo.getCachedTracks(['any']), isEmpty);

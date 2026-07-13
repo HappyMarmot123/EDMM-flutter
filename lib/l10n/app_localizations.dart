@@ -374,83 +374,11 @@ abstract class AppLocalizations {
   /// **'Playback data is invalid'**
   String get playbackErrorInvalidData;
 
-  /// No description provided for @libraryTitle.
+  /// No description provided for @localStorageError.
   ///
   /// In en, this message translates to:
-  /// **'Library'**
-  String get libraryTitle;
-
-  /// No description provided for @favoritesTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Favorites'**
-  String get favoritesTitle;
-
-  /// No description provided for @favoritesEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No favorite tracks yet'**
-  String get favoritesEmpty;
-
-  /// No description provided for @playlistsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlists'**
-  String get playlistsTitle;
-
-  /// No description provided for @playlistsEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No playlists yet'**
-  String get playlistsEmpty;
-
-  /// No description provided for @playlistCreate.
-  ///
-  /// In en, this message translates to:
-  /// **'Create playlist'**
-  String get playlistCreate;
-
-  /// No description provided for @playlistName.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlist name'**
-  String get playlistName;
-
-  /// No description provided for @playlistDelete.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete playlist'**
-  String get playlistDelete;
-
-  /// No description provided for @playlistTracksEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'This playlist is empty'**
-  String get playlistTracksEmpty;
-
-  /// No description provided for @playlistNotFound.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlist not found'**
-  String get playlistNotFound;
-
-  /// No description provided for @removeFromPlaylist.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove from playlist'**
-  String get removeFromPlaylist;
-
-  /// No description provided for @libraryStorageError.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t access the local library'**
-  String get libraryStorageError;
-
-  /// No description provided for @trackUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Track details are unavailable'**
-  String get trackUnavailable;
+  /// **'Couldn\'t save track data locally'**
+  String get localStorageError;
 
   /// No description provided for @trackDetailsTitle.
   ///
@@ -475,30 +403,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Play'**
   String get trackPlay;
-
-  /// No description provided for @favoriteAdd.
-  ///
-  /// In en, this message translates to:
-  /// **'Add to favorites'**
-  String get favoriteAdd;
-
-  /// No description provided for @favoriteRemove.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove from favorites'**
-  String get favoriteRemove;
-
-  /// No description provided for @playlistAdd.
-  ///
-  /// In en, this message translates to:
-  /// **'Add to playlist'**
-  String get playlistAdd;
-
-  /// No description provided for @playlistAdded.
-  ///
-  /// In en, this message translates to:
-  /// **'Added to playlist'**
-  String get playlistAdded;
 
   /// No description provided for @albumLabel.
   ///

@@ -153,7 +153,6 @@ void main() {
     final vm = _vm((c, q) => Ok([_t('1'), _t('2')]));
     List<Track>? queue;
     int? index;
-    var libraryOpens = 0;
     Track? openedTrack;
     await tester.pumpWidget(
       _host(
@@ -163,7 +162,6 @@ void main() {
             queue = q;
             index = i;
           },
-          onOpenLibrary: () => libraryOpens++,
           onOpenTrack: (track) => openedTrack = track,
         ),
       ),
@@ -171,8 +169,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Song 1'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('catalog-open-library')));
-    expect(libraryOpens, 1);
     await tester.tap(find.byKey(const Key('catalog-track-detail-1')));
     expect(openedTrack?.id, '1');
     await tester.tap(find.text('Song 2'));

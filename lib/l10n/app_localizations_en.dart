@@ -154,43 +154,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackErrorInvalidData => 'Playback data is invalid';
 
   @override
-  String get libraryTitle => 'Library';
-
-  @override
-  String get favoritesTitle => 'Favorites';
-
-  @override
-  String get favoritesEmpty => 'No favorite tracks yet';
-
-  @override
-  String get playlistsTitle => 'Playlists';
-
-  @override
-  String get playlistsEmpty => 'No playlists yet';
-
-  @override
-  String get playlistCreate => 'Create playlist';
-
-  @override
-  String get playlistName => 'Playlist name';
-
-  @override
-  String get playlistDelete => 'Delete playlist';
-
-  @override
-  String get playlistTracksEmpty => 'This playlist is empty';
-
-  @override
-  String get playlistNotFound => 'Playlist not found';
-
-  @override
-  String get removeFromPlaylist => 'Remove from playlist';
-
-  @override
-  String get libraryStorageError => 'Couldn\'t access the local library';
-
-  @override
-  String get trackUnavailable => 'Track details are unavailable';
+  String get localStorageError => 'Couldn\'t save track data locally';
 
   @override
   String get trackDetailsTitle => 'Track details';
@@ -203,18 +167,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trackPlay => 'Play';
-
-  @override
-  String get favoriteAdd => 'Add to favorites';
-
-  @override
-  String get favoriteRemove => 'Remove from favorites';
-
-  @override
-  String get playlistAdd => 'Add to playlist';
-
-  @override
-  String get playlistAdded => 'Added to playlist';
 
   @override
   String get albumLabel => 'Album';

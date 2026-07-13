@@ -84,59 +84,98 @@ class _RenameFailingFile implements File {
 
 void main() {
   group('FileLocalLibraryRepository', () {
-    test(
-      'persists and restores favorites, playlists, recents, cache, and settings',
-      () async {
-        SharedPreferences.setMockInitialValues({});
-        final prefs = await SharedPreferences.getInstance();
+    test('persists and restores recents, cache, and settings', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
 
+      final dir = await Directory.systemTemp.createTemp(
+        'edmm-file-local-library-repo-',
+      );
+      final file = File('${dir.path}/edmm_local_library.json');
+      addTearDown(() => dir.delete(recursive: true));
+
+      final repo = await FileLocalLibraryRepository.open(
+        filePath: file.path,
+        prefs: prefs,
+      );
+
+      await repo.recordRecentPlay('track-1');
+      await repo.recordRecentPlay('track-2');
+
+      await repo.cacheTrack(_track('track-1'));
+      await repo.cacheTrack(_track('track-2'));
+
+      await repo.setAudioSetting('shuffle', 'true');
+
+      final reopen = await FileLocalLibraryRepository.open(
+        filePath: file.path,
+        prefs: prefs,
+      );
+
+      expect(await reopen.getRecentTrackIds(), ['track-2', 'track-1']);
+      expect((await reopen.getCachedTrack('track-2'))?.id, 'track-2');
+      expect(await reopen.getAudioSetting('shuffle'), 'true');
+    });
+
+    test(
+      'purges legacy favorites and playlists on open while preserving data',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'audio_setting:shuffle': 'true',
+        });
+        final prefs = await SharedPreferences.getInstance();
         final dir = await Directory.systemTemp.createTemp(
-          'edmm-file-local-library-repo-',
+          'edmm-file-local-library-legacy-purge-',
         );
         final file = File('${dir.path}/edmm_local_library.json');
         addTearDown(() => dir.delete(recursive: true));
+        await file.writeAsString(
+          jsonEncode({
+            'favorites': {'legacy-favorite': 100},
+            'playlists': [
+              {
+                'id': 7,
+                'name': 'Legacy mix',
+                'createdAt': 200,
+                'trackIds': ['track-1'],
+              },
+            ],
+            'nextPlaylistId': 8,
+            'recentTrackIds': ['track-2', 'track-1'],
+            'trackCache': {
+              'track-1': _track('track-1').toJson(),
+              'track-2': _track('track-2').toJson(),
+            },
+          }),
+          flush: true,
+        );
 
         final repo = await FileLocalLibraryRepository.open(
           filePath: file.path,
           prefs: prefs,
         );
 
-        await repo.setFavorite('track-1', true);
-        await repo.setFavorite('track-2', true);
-
-        final playlistId = await repo.createPlaylist('Mix');
-        expect(await repo.addTrackToPlaylist(playlistId, 'track-1'), true);
-        expect(await repo.addTrackToPlaylist(playlistId, 'track-2'), true);
-        expect(await repo.addTrackToPlaylist(playlistId, 'track-2'), true);
-        expect(await repo.addTrackToPlaylist(999, 'track-1'), false);
-
-        await repo.recordRecentPlay('track-1');
-        await repo.recordRecentPlay('track-2');
-
-        await repo.cacheTrack(_track('track-1'));
-        await repo.cacheTrack(_track('track-2'));
-
-        await repo.setAudioSetting('shuffle', 'true');
-
-        final reopen = await FileLocalLibraryRepository.open(
-          filePath: file.path,
-          prefs: prefs,
-        );
-
+        expect(await repo.getRecentTrackIds(), ['track-2', 'track-1']);
         expect(
-          (await reopen.getFavorites()).map((row) => row.trackId).toList(),
-          ['track-2', 'track-1'],
+          (await repo.getCachedTracks([
+            'track-1',
+            'track-2',
+          ])).map((track) => track.id),
+          ['track-1', 'track-2'],
         );
-        final playlists = await reopen.getPlaylists();
-        expect(playlists, hasLength(1));
-        expect(playlists.first.name, 'Mix');
-        expect(await reopen.getPlaylistTrackIds(playlistId), [
-          'track-1',
-          'track-2',
-        ]);
-        expect(await reopen.getRecentTrackIds(), ['track-2', 'track-1']);
-        expect((await reopen.getCachedTrack('track-2'))?.id, 'track-2');
-        expect(await reopen.getAudioSetting('shuffle'), 'true');
+        expect(await repo.getAudioSetting('shuffle'), 'true');
+
+        final migrated =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        expect(migrated['schemaVersion'], 2);
+        expect(migrated, isNot(contains('favorites')));
+        expect(migrated, isNot(contains('playlists')));
+        expect(migrated, isNot(contains('nextPlaylistId')));
+        expect(migrated['recentTrackIds'], ['track-2', 'track-1']);
+        expect(
+          (migrated['trackCache'] as Map<String, dynamic>).keys,
+          containsAll(['track-1', 'track-2']),
+        );
       },
     );
 
@@ -158,14 +197,12 @@ void main() {
         prefs: prefs,
       );
 
-      expect(await repo.getFavorites(), isEmpty);
-      expect(await repo.getPlaylists(), isEmpty);
       expect(await repo.getRecentTrackIds(), isEmpty);
       expect(await repo.getCachedTrack('any'), isNull);
       expect(await repo.getAudioSetting('shuffle'), 'false');
 
-      await repo.setFavorite('track-safe', true);
-      expect(await repo.isFavorite('track-safe'), true);
+      await repo.recordRecentPlay('track-safe');
+      expect(await repo.getRecentTrackIds(), ['track-safe']);
     });
 
     test('surfaces file read failures while opening', () async {
@@ -199,7 +236,7 @@ void main() {
       );
 
       await expectLater(
-        repo.setFavorite('track-1', true),
+        repo.recordRecentPlay('track-1'),
         throwsA(isA<FileSystemException>()),
       );
     });
@@ -219,35 +256,19 @@ void main() {
 
       await Future.wait([
         for (var index = 0; index < 32; index++)
-          repo.setFavorite('track-$index', true),
+          repo.cacheTrack(_track('track-$index')),
       ]);
 
       final reopen = await FileLocalLibraryRepository.open(
         filePath: file.path,
         prefs: prefs,
       );
-      expect(await reopen.getFavorites(), hasLength(32));
-    });
-
-    test('serializes concurrent favorite toggles atomically', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final dir = await Directory.systemTemp.createTemp(
-        'edmm-file-local-library-concurrent-toggles-',
+      expect(
+        await reopen.getCachedTracks([
+          for (var index = 0; index < 32; index++) 'track-$index',
+        ]),
+        hasLength(32),
       );
-      final file = File('${dir.path}/edmm_local_library.json');
-      addTearDown(() => dir.delete(recursive: true));
-      final repo = await FileLocalLibraryRepository.open(
-        filePath: file.path,
-        prefs: prefs,
-      );
-
-      await Future.wait([
-        repo.toggleFavorite('track-1'),
-        repo.toggleFavorite('track-1'),
-      ]);
-
-      expect(await repo.isFavorite('track-1'), false);
     });
 
     test(
@@ -266,12 +287,12 @@ void main() {
           prefs: prefs,
         );
 
-        final failedWrite = repo.setFavorite('track-1', true);
-        final readDuringWrite = repo.isFavorite('track-1');
+        final failedWrite = repo.recordRecentPlay('track-1');
+        final readDuringWrite = repo.getRecentTrackIds();
 
         await expectLater(failedWrite, throwsA(isA<FileSystemException>()));
-        expect(await readDuringWrite, false);
-        expect(await repo.isFavorite('track-1'), false);
+        expect(await readDuringWrite, isEmpty);
+        expect(await repo.getRecentTrackIds(), isEmpty);
       },
     );
 
@@ -290,25 +311,13 @@ void main() {
           filePath: file.path,
           prefs: prefs,
         );
-        final playlistId = await repo.createPlaylist('Original');
-        await repo.addTrackToPlaylist(playlistId, 'track-1');
+        await repo.recordRecentPlay('track-1');
+        await repo.cacheTrack(_track('track-1'));
 
         await storageDir.delete(recursive: true);
         final blockingFile = File(storageDir.path);
         await blockingFile.writeAsString('blocking parent');
 
-        await expectLater(
-          repo.createPlaylist('Rolled back'),
-          throwsA(isA<FileSystemException>()),
-        );
-        await expectLater(
-          repo.addTrackToPlaylist(playlistId, 'track-2'),
-          throwsA(isA<FileSystemException>()),
-        );
-        await expectLater(
-          repo.removeTrackFromPlaylist(playlistId, 'track-1'),
-          throwsA(isA<FileSystemException>()),
-        );
         await expectLater(
           repo.recordRecentPlay('track-2'),
           throwsA(isA<FileSystemException>()),
@@ -317,20 +326,14 @@ void main() {
           repo.cacheTrack(_track('track-2')),
           throwsA(isA<FileSystemException>()),
         );
-        await expectLater(
-          repo.deletePlaylist(playlistId),
-          throwsA(isA<FileSystemException>()),
-        );
 
-        expect((await repo.getPlaylists()).map((row) => row.name), [
-          'Original',
-        ]);
-        expect(await repo.getPlaylistTrackIds(playlistId), ['track-1']);
-        expect(await repo.getRecentTrackIds(), isEmpty);
+        expect(await repo.getRecentTrackIds(), ['track-1']);
+        expect((await repo.getCachedTrack('track-1'))?.id, 'track-1');
         expect(await repo.getCachedTrack('track-2'), isNull);
 
         await blockingFile.delete();
-        expect(await repo.createPlaylist('Recovered'), 2);
+        await repo.recordRecentPlay('recovered');
+        expect(await repo.getRecentTrackIds(), ['recovered', 'track-1']);
       },
     );
 
@@ -349,7 +352,8 @@ void main() {
         filePath: file.path,
         prefs: prefs,
       );
-      await seed.setFavorite('original', true);
+      await seed.recordRecentPlay('original');
+      await seed.cacheTrack(_track('original'));
 
       await IOOverrides.runZoned(
         () async {
@@ -359,7 +363,7 @@ void main() {
           );
 
           await expectLater(
-            repo.setFavorite('uncommitted', true),
+            repo.recordRecentPlay('uncommitted'),
             throwsA(isA<FileSystemException>()),
           );
         },
@@ -375,8 +379,8 @@ void main() {
         filePath: file.path,
         prefs: prefs,
       );
-      expect(await reopen.isFavorite('original'), true);
-      expect(await reopen.isFavorite('uncommitted'), false);
+      expect(await reopen.getRecentTrackIds(), ['original']);
+      expect((await reopen.getCachedTrack('original'))?.id, 'original');
     });
 
     test(

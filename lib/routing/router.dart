@@ -15,10 +15,6 @@ import '../domain/telemetry/playback_telemetry.dart';
 import '../ui/catalog_search/view_model/catalog_search_view_model.dart';
 import '../ui/catalog_search/widgets/catalog_search_screen.dart';
 import '../ui/core/widgets/playback_shell.dart';
-import '../ui/library/view_model/library_view_model.dart';
-import '../ui/library/view_model/playlist_detail_view_model.dart';
-import '../ui/library/widgets/library_screen.dart';
-import '../ui/library/widgets/playlist_detail_screen.dart';
 import '../ui/track_detail/view_model/track_detail_view_model.dart';
 import '../ui/track_detail/widgets/track_detail_screen.dart';
 import 'routes.dart';
@@ -56,7 +52,6 @@ final GoRouter appRouter = GoRouter(
                 initialTrackId: state.uri.queryParameters['track'],
                 telemetry: telemetry,
               ),
-              onOpenLibrary: () => context.push(libraryLocation()),
               onOpenTrack: (track) =>
                   context.push(trackDetailLocation(track.id), extra: track),
               onPlay: (queue, index) => unawaited(
@@ -70,57 +65,14 @@ final GoRouter appRouter = GoRouter(
             );
           },
         ),
+        // Old collection links remain valid for one compatibility window, but
+        // no longer expose removed collection functionality.
         GoRoute(
-          path: Routes.library,
-          builder: (context, state) {
-            final localLibrary = context.read<LocalLibraryRepository>();
-            final audio = context.read<AudioController>();
-            return LibraryScreen(
-              viewModel: LibraryViewModel(localLibrary),
-              onOpenTrack: (trackId) =>
-                  context.push(trackDetailLocation(trackId)),
-              onOpenPlaylist: (playlist) {
-                final id = playlist.id;
-                if (id != null) context.push(playlistDetailLocation(id));
-              },
-              onPlay: (queue, index) => unawaited(
-                _startPlayback(
-                  audio: audio,
-                  localLibrary: localLibrary,
-                  queue: queue,
-                  index: index,
-                ),
-              ),
-            );
-          },
-        ),
-        GoRoute(
-          path: Routes.playlistDetail,
-          redirect: (_, state) {
-            final id = int.tryParse(state.pathParameters['id'] ?? '');
-            return id == null || id < 0 ? Routes.library : null;
-          },
-          builder: (context, state) {
-            final playlistId = int.parse(state.pathParameters['id']!);
-            final localLibrary = context.read<LocalLibraryRepository>();
-            final audio = context.read<AudioController>();
-            return PlaylistDetailScreen(
-              viewModel: PlaylistDetailViewModel(
-                localLibrary,
-                playlistId: playlistId,
-              ),
-              onOpenTrack: (trackId) =>
-                  context.push(trackDetailLocation(trackId)),
-              onPlay: (queue, index) => unawaited(
-                _startPlayback(
-                  audio: audio,
-                  localLibrary: localLibrary,
-                  queue: queue,
-                  index: index,
-                ),
-              ),
-            );
-          },
+          path: '/library',
+          redirect: (_, _) => Routes.trackList,
+          routes: [
+            GoRoute(path: 'playlist/:id', redirect: (_, _) => Routes.trackList),
+          ],
         ),
         GoRoute(
           path: Routes.trackDetail,

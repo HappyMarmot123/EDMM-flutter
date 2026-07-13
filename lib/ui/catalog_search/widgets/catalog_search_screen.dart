@@ -9,13 +9,11 @@ class CatalogSearchScreen extends StatefulWidget {
     super.key,
     required this.viewModel,
     required this.onPlay,
-    this.onOpenLibrary,
     this.onOpenTrack,
   });
 
   final CatalogSearchViewModel viewModel;
   final void Function(List<Track> queue, int index) onPlay;
-  final VoidCallback? onOpenLibrary;
   final ValueChanged<Track>? onOpenTrack;
 
   @override
@@ -54,18 +52,7 @@ class _CatalogSearchScreenState extends State<CatalogSearchScreen> {
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.trackListTitle),
-        actions: [
-          if (widget.onOpenLibrary != null)
-            IconButton(
-              key: const Key('catalog-open-library'),
-              tooltip: l10n.libraryTitle,
-              onPressed: widget.onOpenLibrary,
-              icon: const Icon(Icons.library_music),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l10n.trackListTitle)),
       body: Column(
         children: [
           Padding(

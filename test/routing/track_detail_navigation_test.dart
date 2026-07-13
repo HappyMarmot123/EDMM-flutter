@@ -108,53 +108,62 @@ Widget _host(_Audio audio, LocalLibraryRepository localLibrary) =>
     );
 
 void main() {
-  testWidgets(
-    'one mini player survives catalog, library, playlist and detail',
-    (tester) async {
-      final audio = _Audio();
-      final local = InMemoryLocalLibraryRepository();
-      final playlistId = await local.createPlaylist('Mix');
-      await local.cacheTrack(_track('1'));
-      await local.addTrackToPlaylist(playlistId, '1');
-      addTearDown(audio.dispose);
-      addTearDown(() => appRouter.go(Routes.trackList));
+  testWidgets('one mini player survives catalog and track detail navigation', (
+    tester,
+  ) async {
+    final audio = _Audio();
+    final local = InMemoryLocalLibraryRepository();
+    addTearDown(audio.dispose);
+    addTearDown(() => appRouter.go(Routes.trackList));
 
-      appRouter.go(Routes.trackList);
-      await tester.pumpWidget(_host(audio, local));
-      await tester.pumpAndSettle();
-      audio.snapshots.add(
-        PlaybackSnapshot(
-          currentTrack: _track('1'),
-          status: PlaybackStatus.playing,
-          duration: const Duration(minutes: 1),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
+    appRouter.go(Routes.trackList);
+    await tester.pumpWidget(_host(audio, local));
+    await tester.pumpAndSettle();
+    audio.snapshots.add(
+      PlaybackSnapshot(
+        currentTrack: _track('1'),
+        status: PlaybackStatus.playing,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('catalog-open-library')));
-      await tester.pumpAndSettle();
-      expect(find.text('Library'), findsOneWidget);
-      expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('catalog-track-detail-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Track details'), findsOneWidget);
+    expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
+    expect(audio.loaded, isEmpty);
+    expect(audio.plays, 0);
 
-      appRouter.go(playlistDetailLocation(playlistId));
-      await tester.pumpAndSettle();
-      expect(find.text('Mix'), findsOneWidget);
-      expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('track-detail-play')));
+    await tester.pump();
+    expect(audio.loaded.single.single.id, '1');
+    expect(audio.plays, 1);
+  });
 
-      appRouter.go(trackDetailLocation('1'), extra: _track('1'));
-      await tester.pumpAndSettle();
-      expect(find.text('Track details'), findsOneWidget);
-      expect(find.byKey(const Key('player-mini-bar')), findsOneWidget);
-      expect(audio.loaded, isEmpty);
-      expect(audio.plays, 0);
+  testWidgets('legacy collection URLs redirect to the catalog', (tester) async {
+    final audio = _Audio();
+    final local = InMemoryLocalLibraryRepository();
+    addTearDown(audio.dispose);
+    addTearDown(() => appRouter.go(Routes.trackList));
 
-      await tester.tap(find.byKey(const Key('track-detail-play')));
-      await tester.pump();
-      expect(audio.loaded.single.single.id, '1');
-      expect(audio.plays, 1);
-    },
-  );
+    appRouter.go('/library');
+    await tester.pumpWidget(_host(audio, local));
+    await tester.pumpAndSettle();
+
+    expect(appRouter.routeInformationProvider.value.uri.path, Routes.trackList);
+    expect(find.text('Song 1'), findsOneWidget);
+    expect(find.byKey(const Key('catalog-open-library')), findsNothing);
+    expect(find.byKey(const Key('library-scroll')), findsNothing);
+
+    appRouter.go('/library/playlist/42');
+    await tester.pumpAndSettle();
+
+    expect(appRouter.routeInformationProvider.value.uri.path, Routes.trackList);
+    expect(find.text('Song 1'), findsOneWidget);
+    expect(find.byKey(const Key('playlist-detail-list')), findsNothing);
+  });
 
   testWidgets('a direct track deep link resolves without starting playback', (
     tester,
