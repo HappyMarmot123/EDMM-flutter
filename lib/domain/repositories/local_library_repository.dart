@@ -11,7 +11,9 @@ abstract class LocalLibraryRepository {
   // playlists
   Future<int> createPlaylist(String name);
   Future<List<PlaylistRow>> getPlaylists();
-  Future<void> addTrackToPlaylist(int playlistId, String trackId);
+
+  /// Returns false when the target playlist no longer exists.
+  Future<bool> addTrackToPlaylist(int playlistId, String trackId);
   Future<void> removeTrackFromPlaylist(int playlistId, String trackId);
   Future<List<String>> getPlaylistTrackIds(int playlistId);
   Future<void> deletePlaylist(int playlistId);

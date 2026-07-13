@@ -16,6 +16,8 @@ class TrackApiException implements Exception {
 
 class TrackApiService {
   TrackApiService(this._client, this._config);
+  static const String trackListCacheVersion = '2';
+
   final http.Client _client;
   final AppConfig _config;
 
@@ -26,6 +28,7 @@ class TrackApiService {
     'q': query,
     'resourceType': 'all',
     'category': category.wire,
+    'v': trackListCacheVersion,
   });
 
   Future<List<Track>> _get(
@@ -33,11 +36,14 @@ class TrackApiService {
     Map<String, String> queryParameters,
   ) async {
     final base = Uri.parse(_config.normalizedBffBaseUrl);
-    final uri = Uri(
-      scheme: base.scheme.isNotEmpty ? base.scheme : 'https',
-      host: base.host,
-      path: path,
-      queryParameters: queryParameters,
+    final endpoint = Uri(path: path);
+    final uri = base.replace(
+      pathSegments: [
+        ...base.pathSegments.where((segment) => segment.isNotEmpty),
+        ...endpoint.pathSegments.where((segment) => segment.isNotEmpty),
+      ],
+      queryParameters: {...base.queryParameters, ...queryParameters},
+      fragment: '',
     );
     final http.Response res;
     try {

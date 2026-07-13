@@ -9,6 +9,15 @@ import '../../domain/models/local_library_entities.dart';
 import '../../domain/models/track.dart';
 import '../../domain/repositories/local_library_repository.dart';
 
+typedef _RepositoryState = ({
+  Map<String, int> favorites,
+  List<PlaylistRow> playlists,
+  Map<int, List<String>> playlistTrackIds,
+  List<String> recentTrackIds,
+  Map<String, Track> trackCache,
+  int nextPlaylistId,
+});
+
 class FileLocalLibraryRepository implements LocalLibraryRepository {
   FileLocalLibraryRepository._({
     required this._file,
@@ -52,14 +61,15 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
   final List<String> _recentTrackIds = <String>[];
   final Map<String, Track> _trackCache = <String, Track>{};
   int _nextPlaylistId = 1;
+  Future<void> _writeTail = Future<void>.value();
 
   @override
   Future<bool> isFavorite(String trackId) async =>
-      _safeRead(() => _favorites.containsKey(trackId), false);
+      _read(() => _favorites.containsKey(trackId));
 
   @override
   Future<void> setFavorite(String trackId, bool favorite) async =>
-      _safeWrite(() async {
+      _write(() async {
         if (favorite) {
           _favorites[trackId] = _nowMs();
         } else {
@@ -69,13 +79,17 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
       });
 
   @override
-  Future<void> toggleFavorite(String trackId) async {
-    final liked = await isFavorite(trackId);
-    await setFavorite(trackId, !liked);
-  }
+  Future<void> toggleFavorite(String trackId) async => _write(() async {
+    if (_favorites.containsKey(trackId)) {
+      _favorites.remove(trackId);
+    } else {
+      _favorites[trackId] = _nowMs();
+    }
+    await _persist();
+  });
 
   @override
-  Future<List<FavoriteRow>> getFavorites() async => _safeRead(() {
+  Future<List<FavoriteRow>> getFavorites() async => _read(() {
     final rows = _favorites.entries
         .map(
           (entry) =>
@@ -84,36 +98,38 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
         .toList(growable: false);
     rows.sort((a, b) => b.addedAt.compareTo(a.addedAt));
     return rows;
-  }, <FavoriteRow>[]);
+  });
 
   @override
-  Future<int> createPlaylist(String name) async => _safeRead(() async {
+  Future<int> createPlaylist(String name) async => _write(() async {
     final id = _nextPlaylistId++;
     _playlists.add(PlaylistRow(id: id, name: name, createdAt: _nowMs()));
     _playlistTrackIds[id] = <String>[];
     await _persist();
     return id;
-  }, -1);
+  });
 
   @override
-  Future<List<PlaylistRow>> getPlaylists() async => _safeRead(() {
+  Future<List<PlaylistRow>> getPlaylists() async => _read(() {
     final rows = _playlists.toList(growable: false);
     rows.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return rows;
-  }, <PlaylistRow>[]);
+  });
 
   @override
-  Future<void> addTrackToPlaylist(int playlistId, String trackId) async =>
-      _safeWrite(() async {
+  Future<bool> addTrackToPlaylist(int playlistId, String trackId) async =>
+      _write(() async {
         final tracks = _playlistTrackIds[playlistId];
-        if (tracks == null || tracks.contains(trackId)) return;
+        if (tracks == null) return false;
+        if (tracks.contains(trackId)) return true;
         tracks.add(trackId);
         await _persist();
+        return true;
       });
 
   @override
   Future<void> removeTrackFromPlaylist(int playlistId, String trackId) async =>
-      _safeWrite(() async {
+      _write(() async {
         final tracks = _playlistTrackIds[playlistId];
         if (tracks == null) return;
         tracks.remove(trackId);
@@ -121,21 +137,20 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
       });
 
   @override
-  Future<List<String>> getPlaylistTrackIds(int playlistId) async =>
-      _safeRead(() {
-        final tracks = _playlistTrackIds[playlistId];
-        return tracks == null ? <String>[] : List<String>.from(tracks);
-      }, <String>[]);
+  Future<List<String>> getPlaylistTrackIds(int playlistId) async => _read(() {
+    final tracks = _playlistTrackIds[playlistId];
+    return tracks == null ? <String>[] : List<String>.from(tracks);
+  });
 
   @override
-  Future<void> deletePlaylist(int playlistId) async => _safeWrite(() async {
+  Future<void> deletePlaylist(int playlistId) async => _write(() async {
     _playlists.removeWhere((playlist) => playlist.id == playlistId);
     _playlistTrackIds.remove(playlistId);
     await _persist();
   });
 
   @override
-  Future<void> recordRecentPlay(String trackId) async => _safeWrite(() async {
+  Future<void> recordRecentPlay(String trackId) async => _write(() async {
     _recentTrackIds.remove(trackId);
     _recentTrackIds.insert(0, trackId);
     if (_recentTrackIds.length > _maxRecentPlays) {
@@ -146,47 +161,60 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
 
   @override
   Future<List<String>> getRecentTrackIds({int limit = _maxRecentPlays}) async =>
-      _safeRead(() {
+      _read(() {
         final normalizedLimit = limit < 0 ? 0 : limit;
         return _recentTrackIds.take(normalizedLimit).toList(growable: false);
-      }, <String>[]);
+      });
 
   @override
-  Future<void> cacheTrack(Track track) async => _safeWrite(() async {
+  Future<void> cacheTrack(Track track) async => _write(() async {
     _trackCache[track.id] = track;
     await _persist();
   });
 
   @override
   Future<Track?> getCachedTrack(String trackId) async =>
-      _safeRead(() => _trackCache[trackId], null);
+      _read(() => _trackCache[trackId]);
 
   @override
-  Future<List<Track>> getCachedTracks(List<String> trackIds) async => _safeRead(
+  Future<List<Track>> getCachedTracks(List<String> trackIds) async => _read(
     () => trackIds
         .where((trackId) => _trackCache.containsKey(trackId))
         .map((trackId) => _trackCache[trackId]!)
         .toList(growable: false),
-    <Track>[],
   );
 
   @override
   Future<String?> getAudioSetting(String key) async =>
-      _safeRead(() => _prefs.getString(_audioSettingsPrefKey(key)), null);
+      _read(() => _prefs.getString(_audioSettingsPrefKey(key)));
 
   @override
-  Future<void> setAudioSetting(String key, String value) async =>
-      _safeWrite(() async {
-        await _prefs.setString(_audioSettingsPrefKey(key), value);
-      });
+  Future<void> setAudioSetting(String key, String value) async => _write(
+    () async {
+      final stored = await _prefs.setString(_audioSettingsPrefKey(key), value);
+      if (!stored) {
+        throw StateError('Failed to persist audio setting: $key');
+      }
+    },
+  );
 
   Future<void> _load() async {
     try {
-      if (!await _file.exists()) {
-        return;
+      var source = _file;
+      if (!await source.exists()) {
+        final backup = File('${_file.path}.bak');
+        if (!await backup.exists()) return;
+        source = backup;
+        try {
+          await backup.rename(_file.path);
+          source = _file;
+        } on FileSystemException {
+          // The backup remains a valid recovery source even when restoring it
+          // to the primary path is not currently possible.
+        }
       }
 
-      final raw = await _file.readAsString();
+      final raw = await source.readAsString();
       if (raw.trim().isEmpty) return;
 
       final decoded = jsonDecode(raw);
@@ -212,7 +240,9 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
       _trackCache
         ..clear()
         ..addAll(await _decodeTrackCache(decoded['trackCache']));
-    } catch (_) {}
+    } on FormatException {
+      // A corrupted cache is recoverable: keep the in-memory library empty.
+    }
   }
 
   Future<void> _persist() async {
@@ -221,13 +251,42 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
 
     final payload = _serializeState();
     final tmp = File('${_file.path}.tmp');
+    final backup = File('${_file.path}.bak');
     final serialized = jsonEncode(payload);
     await tmp.writeAsString(serialized, flush: true);
 
-    if (await _file.exists()) {
-      await _file.delete();
+    if (!await _file.exists()) {
+      await tmp.rename(_file.path);
+      await _deleteCommittedBackup(backup);
+      return;
     }
-    await tmp.rename(_file.path);
+
+    if (await backup.exists()) {
+      await backup.delete();
+    }
+    await _file.rename(backup.path);
+    try {
+      await tmp.rename(_file.path);
+    } catch (error, stackTrace) {
+      try {
+        await backup.rename(_file.path);
+      } on FileSystemException {
+        // Keep the backup in place so a later open can recover it.
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+    await _deleteCommittedBackup(backup);
+  }
+
+  Future<void> _deleteCommittedBackup(File backup) async {
+    try {
+      if (await backup.exists()) {
+        await backup.delete();
+      }
+    } on FileSystemException {
+      // The primary file is already committed; a stale backup is harmless and
+      // will be replaced before the next transaction.
+    }
   }
 
   Map<String, dynamic> _serializeState() => {
@@ -320,9 +379,10 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
       final trackMap = entry.value;
       if (trackMap is! Map) continue;
       try {
-        cache[entry.key.toString()] = Track.fromJson(
-          trackMap.cast<String, dynamic>(),
-        );
+        final trackId = entry.key.toString();
+        final track = Track.fromJson(trackMap.cast<String, dynamic>());
+        if (track.id != trackId) continue;
+        cache[trackId] = track;
       } catch (_) {}
     }
     return cache;
@@ -330,17 +390,57 @@ class FileLocalLibraryRepository implements LocalLibraryRepository {
 
   String _audioSettingsPrefKey(String key) => '$_audioSettingsPrefix$key';
 
-  Future<T> _safeRead<T>(FutureOr<T> Function() action, T fallback) async {
-    try {
-      return await action();
-    } catch (_) {
-      return fallback;
-    }
+  Future<T> _read<T>(FutureOr<T> Function() action) async {
+    final pendingWrites = _writeTail;
+    await pendingWrites;
+    return await action();
   }
 
-  Future<void> _safeWrite(Future<void> Function() action) async {
-    try {
-      await action();
-    } catch (_) {}
+  Future<T> _write<T>(Future<T> Function() action) {
+    final operation = _writeTail.then((_) async {
+      final snapshot = _snapshotState();
+      try {
+        return await action();
+      } catch (_) {
+        _restoreState(snapshot);
+        rethrow;
+      }
+    });
+    _writeTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
+  _RepositoryState _snapshotState() => (
+    favorites: Map<String, int>.from(_favorites),
+    playlists: List<PlaylistRow>.from(_playlists),
+    playlistTrackIds: _playlistTrackIds.map(
+      (playlistId, trackIds) =>
+          MapEntry(playlistId, List<String>.from(trackIds)),
+    ),
+    recentTrackIds: List<String>.from(_recentTrackIds),
+    trackCache: Map<String, Track>.from(_trackCache),
+    nextPlaylistId: _nextPlaylistId,
+  );
+
+  void _restoreState(_RepositoryState snapshot) {
+    _favorites
+      ..clear()
+      ..addAll(snapshot.favorites);
+    _playlists
+      ..clear()
+      ..addAll(snapshot.playlists);
+    _playlistTrackIds
+      ..clear()
+      ..addAll(snapshot.playlistTrackIds);
+    _recentTrackIds
+      ..clear()
+      ..addAll(snapshot.recentTrackIds);
+    _trackCache
+      ..clear()
+      ..addAll(snapshot.trackCache);
+    _nextPlaylistId = snapshot.nextPlaylistId;
   }
 }

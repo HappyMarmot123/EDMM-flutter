@@ -40,6 +40,9 @@ class _Repo implements TrackRepository {
 }
 
 class _Audio implements AudioController {
+  _Audio({this.loadSucceeds = true});
+
+  final bool loadSucceeds;
   final loadedQueues = <List<Track>>[];
   int plays = 0;
 
@@ -56,8 +59,9 @@ class _Audio implements AudioController {
   double get volume => 1.0;
 
   @override
-  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {
+  Future<bool> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {
     loadedQueues.add(tracks);
+    return loadSucceeds;
   }
 
   @override
@@ -152,4 +156,21 @@ void main() {
       expect(audio.plays, 0);
     },
   );
+
+  test('returns false when the audio controller rejects the queue', () async {
+    final localLibrary = InMemoryLocalLibraryRepository();
+    await localLibrary.cacheTrack(_t('track-4'));
+    final audio = _Audio(loadSucceeds: false);
+
+    final loaded = await loadDeepLinkedTrack(
+      trackId: 'track-4',
+      trackRepository: _Repo((category, query) => const Ok([])),
+      localLibrary: localLibrary,
+      audio: audio,
+    );
+
+    expect(loaded, isFalse);
+    expect(audio.loadedQueues, hasLength(1));
+    expect(audio.plays, 0);
+  });
 }

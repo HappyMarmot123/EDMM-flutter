@@ -24,7 +24,8 @@ class NoopLocalLibraryRepository implements LocalLibraryRepository {
   Future<List<PlaylistRow>> getPlaylists() async => const [];
 
   @override
-  Future<void> addTrackToPlaylist(int playlistId, String trackId) async {}
+  Future<bool> addTrackToPlaylist(int playlistId, String trackId) async =>
+      false;
 
   @override
   Future<void> removeTrackFromPlaylist(int playlistId, String trackId) async {}

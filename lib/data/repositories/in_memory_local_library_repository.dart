@@ -64,12 +64,13 @@ class InMemoryLocalLibraryRepository implements LocalLibraryRepository {
   }, <PlaylistRow>[]);
 
   @override
-  Future<void> addTrackToPlaylist(int playlistId, String trackId) async =>
-      _safeWrite(() {
+  Future<bool> addTrackToPlaylist(int playlistId, String trackId) async =>
+      _safeRead(() {
         final tracks = _playlistTrackIds[playlistId];
-        if (tracks == null || tracks.contains(trackId)) return;
-        tracks.add(trackId);
-      });
+        if (tracks == null) return false;
+        if (!tracks.contains(trackId)) tracks.add(trackId);
+        return true;
+      }, false);
 
   @override
   Future<void> removeTrackFromPlaylist(int playlistId, String trackId) async =>
