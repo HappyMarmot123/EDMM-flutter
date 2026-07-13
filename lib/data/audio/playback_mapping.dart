@@ -3,6 +3,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart' show ProcessingState;
 import '../../domain/models/track.dart';
 import '../../domain/playback/playback_snapshot.dart';
+import '../../domain/result.dart';
 
 PlaybackStatus mapProcessingState(ProcessingState state, bool playing) {
   switch (state) {
@@ -28,14 +29,18 @@ Uri? _absoluteHttpUri(String? value) {
   return (scheme == 'http' || scheme == 'https') ? uri : null;
 }
 
-Uri? streamUriForTrack(Track track) =>
-    track.isPlayable ? _absoluteHttpUri(track.streamUrl) : null;
+Uri? streamUriForTrack(Track track) => track.playableUri;
+
+PlaybackSnapshot snapshotWithPlaybackError(
+  PlaybackSnapshot current,
+  Failure error,
+) => current.copyWith(status: PlaybackStatus.error, error: error);
 
 MediaItem toMediaItem(Track track) => MediaItem(
-      id: streamUriForTrack(track)?.toString() ?? track.id,
-      title: track.title,
-      artist: track.artistName,
-      album: track.albumName,
-      duration: track.duration,
-      artUri: _absoluteHttpUri(track.artworkUrl),
-    );
+  id: streamUriForTrack(track)?.toString() ?? track.id,
+  title: track.title,
+  artist: track.artistName,
+  album: track.albumName,
+  duration: track.duration,
+  artUri: _absoluteHttpUri(track.artworkUrl),
+);

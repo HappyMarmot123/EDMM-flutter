@@ -6,7 +6,9 @@ abstract class AudioController {
   Stream<Duration> get position;
   bool get isShuffleEnabled;
   double get volume;
-  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0});
+
+  /// Returns true only when the new queue is ready for playback.
+  Future<bool> loadQueue(List<Track> tracks, {int initialIndex = 0});
   Future<void> setShuffleEnabled(bool enabled);
   Future<void> setVolume(double volume);
   Future<void> setMute(bool muted);

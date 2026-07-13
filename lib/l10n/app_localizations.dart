@@ -206,6 +206,72 @@ abstract class AppLocalizations {
   /// **'Dismiss'**
   String get playerDismiss;
 
+  /// No description provided for @playerShuffle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle'**
+  String get playerShuffle;
+
+  /// No description provided for @playerPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous track'**
+  String get playerPrevious;
+
+  /// No description provided for @playerPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get playerPlay;
+
+  /// No description provided for @playerPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get playerPause;
+
+  /// No description provided for @playerNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next track'**
+  String get playerNext;
+
+  /// No description provided for @playerVisualizerEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Show audio spectrum'**
+  String get playerVisualizerEnable;
+
+  /// No description provided for @playerVisualizerDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide audio spectrum'**
+  String get playerVisualizerDisable;
+
+  /// No description provided for @playerVisualizerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio spectrum is unavailable for this output'**
+  String get playerVisualizerUnavailable;
+
+  /// No description provided for @playerMute.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute'**
+  String get playerMute;
+
+  /// No description provided for @playerUnmute.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute'**
+  String get playerUnmute;
+
+  /// No description provided for @playerOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open full player'**
+  String get playerOpen;
+
   /// No description provided for @playerEqualizer.
   ///
   /// In en, this message translates to:
@@ -307,6 +373,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Playback data is invalid'**
   String get playbackErrorInvalidData;
+
+  /// No description provided for @libraryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get libraryTitle;
+
+  /// No description provided for @favoritesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get favoritesTitle;
+
+  /// No description provided for @favoritesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No favorite tracks yet'**
+  String get favoritesEmpty;
+
+  /// No description provided for @playlistsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get playlistsTitle;
+
+  /// No description provided for @playlistsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No playlists yet'**
+  String get playlistsEmpty;
+
+  /// No description provided for @playlistCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create playlist'**
+  String get playlistCreate;
+
+  /// No description provided for @playlistName.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist name'**
+  String get playlistName;
+
+  /// No description provided for @playlistDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete playlist'**
+  String get playlistDelete;
+
+  /// No description provided for @playlistTracksEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This playlist is empty'**
+  String get playlistTracksEmpty;
+
+  /// No description provided for @playlistNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist not found'**
+  String get playlistNotFound;
+
+  /// No description provided for @removeFromPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from playlist'**
+  String get removeFromPlaylist;
+
+  /// No description provided for @libraryStorageError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t access the local library'**
+  String get libraryStorageError;
+
+  /// No description provided for @trackUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Track details are unavailable'**
+  String get trackUnavailable;
+
+  /// No description provided for @trackDetailsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Track details'**
+  String get trackDetailsTitle;
+
+  /// No description provided for @trackNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Track not found'**
+  String get trackNotFound;
+
+  /// No description provided for @trackDetailLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load track details'**
+  String get trackDetailLoadError;
+
+  /// No description provided for @trackPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get trackPlay;
+
+  /// No description provided for @favoriteAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to favorites'**
+  String get favoriteAdd;
+
+  /// No description provided for @favoriteRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from favorites'**
+  String get favoriteRemove;
+
+  /// No description provided for @playlistAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to playlist'**
+  String get playlistAdd;
+
+  /// No description provided for @playlistAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to playlist'**
+  String get playlistAdded;
+
+  /// No description provided for @albumLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get albumLabel;
+
+  /// No description provided for @sourceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get sourceLabel;
+
+  /// No description provided for @durationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get durationLabel;
+
+  /// No description provided for @metadataTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata'**
+  String get metadataTitle;
+
+  /// No description provided for @unknownAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown album'**
+  String get unknownAlbum;
+
+  /// No description provided for @openTrackDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Open track details'**
+  String get openTrackDetails;
 }
 
 class _AppLocalizationsDelegate

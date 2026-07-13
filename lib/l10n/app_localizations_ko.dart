@@ -63,6 +63,39 @@ class AppLocalizationsKo extends AppLocalizations {
   String get playerDismiss => '닫기';
 
   @override
+  String get playerShuffle => '셔플';
+
+  @override
+  String get playerPrevious => '이전 트랙';
+
+  @override
+  String get playerPlay => '재생';
+
+  @override
+  String get playerPause => '일시정지';
+
+  @override
+  String get playerNext => '다음 트랙';
+
+  @override
+  String get playerVisualizerEnable => '오디오 스펙트럼 표시';
+
+  @override
+  String get playerVisualizerDisable => '오디오 스펙트럼 숨기기';
+
+  @override
+  String get playerVisualizerUnavailable => '현재 출력에서는 오디오 스펙트럼을 사용할 수 없습니다';
+
+  @override
+  String get playerMute => '음소거';
+
+  @override
+  String get playerUnmute => '음소거 해제';
+
+  @override
+  String get playerOpen => '전체 플레이어 열기';
+
+  @override
   String get playerEqualizer => '이퀄라이저';
 
   @override
@@ -115,4 +148,85 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get playbackErrorInvalidData => '재생 데이터가 올바르지 않습니다';
+
+  @override
+  String get libraryTitle => '라이브러리';
+
+  @override
+  String get favoritesTitle => '즐겨찾기';
+
+  @override
+  String get favoritesEmpty => '즐겨찾기한 트랙이 없습니다';
+
+  @override
+  String get playlistsTitle => '플레이리스트';
+
+  @override
+  String get playlistsEmpty => '플레이리스트가 없습니다';
+
+  @override
+  String get playlistCreate => '플레이리스트 만들기';
+
+  @override
+  String get playlistName => '플레이리스트 이름';
+
+  @override
+  String get playlistDelete => '플레이리스트 삭제';
+
+  @override
+  String get playlistTracksEmpty => '이 플레이리스트는 비어 있습니다';
+
+  @override
+  String get playlistNotFound => '플레이리스트를 찾을 수 없습니다';
+
+  @override
+  String get removeFromPlaylist => '플레이리스트에서 제거';
+
+  @override
+  String get libraryStorageError => '로컬 라이브러리에 접근하지 못했습니다';
+
+  @override
+  String get trackUnavailable => '트랙 상세 정보를 사용할 수 없습니다';
+
+  @override
+  String get trackDetailsTitle => '트랙 상세';
+
+  @override
+  String get trackNotFound => '트랙을 찾을 수 없습니다';
+
+  @override
+  String get trackDetailLoadError => '트랙 상세 정보를 불러오지 못했습니다';
+
+  @override
+  String get trackPlay => '재생';
+
+  @override
+  String get favoriteAdd => '즐겨찾기에 추가';
+
+  @override
+  String get favoriteRemove => '즐겨찾기에서 제거';
+
+  @override
+  String get playlistAdd => '플레이리스트에 추가';
+
+  @override
+  String get playlistAdded => '플레이리스트에 추가했습니다';
+
+  @override
+  String get albumLabel => '앨범';
+
+  @override
+  String get sourceLabel => '소스';
+
+  @override
+  String get durationLabel => '재생 시간';
+
+  @override
+  String get metadataTitle => '메타데이터';
+
+  @override
+  String get unknownAlbum => '알 수 없는 앨범';
+
+  @override
+  String get openTrackDetails => '트랙 상세 열기';
 }

@@ -24,7 +24,18 @@ abstract class Track with _$Track {
 
   Duration get duration => Duration(milliseconds: durationMs);
 
-  bool get isPlayable =>
-      (streamUrl?.trim().isNotEmpty ?? false) &&
-      (metadata['resourceType'] as String?)?.toLowerCase() != 'image';
+  Uri? get playableUri {
+    if ((metadata['resourceType'] as String?)?.toLowerCase() == 'image') {
+      return null;
+    }
+    final value = streamUrl?.trim();
+    if (value == null || value.isEmpty) return null;
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.isAbsolute || uri.host.isEmpty) return null;
+    if (uri.toString() != value) return null;
+    final scheme = uri.scheme.toLowerCase();
+    return scheme == 'http' || scheme == 'https' ? uri : null;
+  }
+
+  bool get isPlayable => playableUri != null;
 }

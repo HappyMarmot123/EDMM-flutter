@@ -39,7 +39,8 @@ class _FakeAudio implements AudioController {
   double get volume => _volume;
 
   @override
-  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+  Future<bool> loadQueue(List<Track> tracks, {int initialIndex = 0}) async =>
+      true;
 
   @override
   Future<void> setShuffleEnabled(bool enabled) async {
@@ -115,6 +116,50 @@ class _FakeEffects implements AudioEffectsController {
   Future<void> setEqualizerPreset(AudioEqualizerPreset preset) async {
     _preset = preset;
     setPresetCalls.add(preset);
+  }
+}
+
+class _DelayedSettingsRepository extends InMemoryLocalLibraryRepository {
+  _DelayedSettingsRepository(this.values);
+
+  final Map<String, String> values;
+  final readGate = Completer<void>();
+
+  @override
+  Future<String?> getAudioSetting(String key) async {
+    await readGate.future;
+    return values[key];
+  }
+}
+
+class _ThrowingSettingsRepository extends InMemoryLocalLibraryRepository {
+  @override
+  Future<void> setAudioSetting(String key, String value) async {
+    throw StateError('settings write failed');
+  }
+}
+
+class _DelayedVolumeAudio extends _FakeAudio {
+  final volumeGate = Completer<void>();
+
+  @override
+  Future<void> setVolume(double volume) async {
+    await volumeGate.future;
+    await super.setVolume(volume);
+  }
+}
+
+class _SequencedVolumeAudio extends _FakeAudio {
+  final requestedVolumes = <double>[];
+  final gates = <Completer<void>>[];
+
+  @override
+  Future<void> setVolume(double volume) async {
+    requestedVolumes.add(volume);
+    final gate = Completer<void>();
+    gates.add(gate);
+    await gate.future;
+    await super.setVolume(volume);
   }
 }
 
@@ -200,6 +245,7 @@ void main() {
       expect(audio.setMuteCalls, [true, false]);
       expect(vm.isMuted, isFalse);
       expect(vm.volume, closeTo(0.75, 0.0001));
+      expect(audio.volume, closeTo(0.75, 0.0001));
     },
   );
 
@@ -260,6 +306,152 @@ void main() {
     expect(vm.equalizerPreset, AudioEqualizerPreset.bassBoost);
     expect(effects.setPresetCalls, [AudioEqualizerPreset.bassBoost]);
     expect(await localLibrary.getAudioSetting('equalizer.preset'), 'bass');
+  });
+
+  test('restores volume, mute, shuffle, and equalizer settings', () async {
+    final audio = _FakeAudio();
+    final effects = _FakeEffects();
+    final localLibrary = InMemoryLocalLibraryRepository();
+    await localLibrary.setAudioSetting('volume', '0.35');
+    await localLibrary.setAudioSetting('muted', 'true');
+    await localLibrary.setAudioSetting('shuffle', 'true');
+    await localLibrary.setAudioSetting('equalizer.preset', 'bass');
+
+    final vm = PlayerViewModel(
+      audio,
+      localLibrary: localLibrary,
+      effectsController: effects,
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.volume, 0.0);
+    expect(vm.isMuted, isTrue);
+    expect(vm.isShuffleEnabled, isTrue);
+    expect(vm.equalizerPreset, AudioEqualizerPreset.bassBoost);
+    expect(audio.setVolumeCalls, contains(0.35));
+    expect(audio.setMuteCalls, [true]);
+    expect(audio.setShuffleCalls, [true]);
+  });
+
+  test('persists volume, mute, shuffle, and equalizer user changes', () async {
+    final audio = _FakeAudio();
+    final effects = _FakeEffects();
+    final localLibrary = InMemoryLocalLibraryRepository();
+    final vm = PlayerViewModel(
+      audio,
+      localLibrary: localLibrary,
+      effectsController: effects,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    await vm.setVolume(0.4);
+    await vm.toggleMute();
+    await vm.toggleShuffle();
+    await vm.setEqualizerPreset(AudioEqualizerPreset.bassBoost);
+
+    expect(await localLibrary.getAudioSetting('volume'), '0.4');
+    expect(await localLibrary.getAudioSetting('muted'), 'true');
+    expect(await localLibrary.getAudioSetting('shuffle'), 'true');
+    expect(await localLibrary.getAudioSetting('equalizer.preset'), 'bass');
+  });
+
+  test(
+    'user changes win when stored settings finish restoring later',
+    () async {
+      final audio = _FakeAudio();
+      final effects = _FakeEffects();
+      final localLibrary = _DelayedSettingsRepository({
+        'volume': '0.2',
+        'muted': 'true',
+        'shuffle': 'false',
+        'equalizer.preset': 'flat',
+      });
+      final vm = PlayerViewModel(
+        audio,
+        localLibrary: localLibrary,
+        effectsController: effects,
+      );
+
+      await vm.setVolume(0.8);
+      await vm.toggleShuffle();
+      await vm.setEqualizerPreset(AudioEqualizerPreset.bassBoost);
+      localLibrary.readGate.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.volume, 0.8);
+      expect(vm.isMuted, isFalse);
+      expect(vm.isShuffleEnabled, isTrue);
+      expect(vm.equalizerPreset, AudioEqualizerPreset.bassBoost);
+      expect(audio.volume, 0.8);
+      expect(audio.shuffleEnabled, isTrue);
+      expect(effects.equalizerPreset, AudioEqualizerPreset.bassBoost);
+    },
+  );
+
+  test(
+    'settings write failures do not roll back applied player state',
+    () async {
+      final audio = _FakeAudio();
+      final effects = _FakeEffects();
+      final vm = PlayerViewModel(
+        audio,
+        localLibrary: _ThrowingSettingsRepository(),
+        effectsController: effects,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await expectLater(vm.setVolume(0.6), completes);
+      await expectLater(vm.toggleShuffle(), completes);
+      await expectLater(
+        vm.setEqualizerPreset(AudioEqualizerPreset.bassBoost),
+        completes,
+      );
+
+      expect(vm.volume, 0.6);
+      expect(vm.isShuffleEnabled, isTrue);
+      expect(vm.equalizerPreset, AudioEqualizerPreset.bassBoost);
+    },
+  );
+
+  test('in-flight volume command persists after view model disposal', () async {
+    final audio = _DelayedVolumeAudio();
+    final localLibrary = InMemoryLocalLibraryRepository();
+    final vm = PlayerViewModel(audio, localLibrary: localLibrary);
+    await Future<void>.delayed(Duration.zero);
+
+    final command = vm.setVolume(0.4);
+    vm.dispose();
+    audio.volumeGate.complete();
+    await command;
+
+    expect(audio.volume, 0.4);
+    expect(await localLibrary.getAudioSetting('volume'), '0.4');
+    expect(await localLibrary.getAudioSetting('muted'), 'false');
+  });
+
+  test('volume commands are serialized so the latest request wins', () async {
+    final audio = _SequencedVolumeAudio();
+    final localLibrary = InMemoryLocalLibraryRepository();
+    final vm = PlayerViewModel(audio, localLibrary: localLibrary);
+    await Future<void>.delayed(Duration.zero);
+
+    final first = vm.setVolume(0.2);
+    await Future<void>.delayed(Duration.zero);
+    final second = vm.setVolume(0.8);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(audio.requestedVolumes, [0.2]);
+    audio.gates.first.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(audio.requestedVolumes, [0.2, 0.8]);
+    audio.gates.last.complete();
+    await Future.wait([first, second]);
+
+    expect(audio.volume, 0.8);
+    expect(vm.volume, 0.8);
+    expect(await localLibrary.getAudioSetting('volume'), '0.8');
   });
 
   test('emits playback error telemetry from snapshot errors', () async {
@@ -338,6 +530,47 @@ void main() {
     vm.dismissError();
     expect(vm.hasError, isTrue);
     expect(vm.shouldShowErrorBanner, isFalse);
+  });
+
+  test(
+    'retryPlayback replays the current track and coexists with dismiss',
+    () async {
+      final audio = _FakeAudio();
+      final vm = PlayerViewModel(audio);
+      audio._snap.add(
+        PlaybackSnapshot(
+          currentTrack: _track(),
+          status: PlaybackStatus.error,
+          error: const NetworkFailure('offline'),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.canRetryPlayback, isTrue);
+      vm.dismissError();
+      expect(vm.shouldShowErrorBanner, isFalse);
+
+      await vm.retryPlayback();
+
+      expect(audio.plays, 1);
+      expect(vm.shouldShowErrorBanner, isFalse);
+    },
+  );
+
+  test('retryPlayback is unavailable without a current track', () async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    audio._snap.add(
+      const PlaybackSnapshot(
+        status: PlaybackStatus.error,
+        error: ParseFailure('No playable tracks'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.canRetryPlayback, isFalse);
+    await vm.retryPlayback();
+    expect(audio.plays, 0);
   });
 
   test('clears dismissed error state on non-error snapshots', () async {

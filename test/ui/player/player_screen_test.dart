@@ -1,18 +1,28 @@
 import 'dart:async';
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:edmm/l10n/app_localizations.dart';
 import 'package:edmm/domain/audio/audio_effects_controller.dart';
 import 'package:edmm/domain/audio/audio_controller.dart';
+import 'package:edmm/domain/audio/audio_visualizer_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
 import 'package:edmm/domain/result.dart';
 import 'package:edmm/ui/player/view_model/player_view_model.dart';
 import 'package:edmm/ui/player/widgets/player_screen.dart';
 
-class _FakeAudio implements AudioController, AudioEffectsController {
+class _FakeAudio
+    implements
+        AudioController,
+        AudioEffectsController,
+        AudioVisualizerController {
   final _snap = StreamController<PlaybackSnapshot>.broadcast();
   final _pos = StreamController<Duration>.broadcast();
+  final _spectrum = StreamController<AudioSpectrumFrame>.broadcast();
+  final _visualizerSupport =
+      StreamController<AudioVisualizerSupport>.broadcast();
 
   int plays = 0;
   int pauses = 0;
@@ -28,6 +38,7 @@ class _FakeAudio implements AudioController, AudioEffectsController {
   final setMuteCalls = <bool>[];
   AudioEqualizerPreset preset = AudioEqualizerPreset.flat;
   AudioEqualizerSupport support = AudioEqualizerSupport.supported;
+  AudioVisualizerSupport spectrumSupport = AudioVisualizerSupport.supported;
   final setEqualizerPresetCalls = <AudioEqualizerPreset>[];
 
   @override
@@ -37,13 +48,24 @@ class _FakeAudio implements AudioController, AudioEffectsController {
   Stream<Duration> get position => _pos.stream;
 
   @override
+  Stream<AudioSpectrumFrame> get spectrum => _spectrum.stream;
+
+  @override
+  AudioVisualizerSupport get visualizerSupport => spectrumSupport;
+
+  @override
+  Stream<AudioVisualizerSupport> get visualizerSupportStream =>
+      _visualizerSupport.stream;
+
+  @override
   bool get isShuffleEnabled => shuffleEnabled;
 
   @override
   double get volume => _volume;
 
   @override
-  Future<void> loadQueue(List<Track> tracks, {int initialIndex = 0}) async {}
+  Future<bool> loadQueue(List<Track> tracks, {int initialIndex = 0}) async =>
+      true;
 
   @override
   Future<void> setShuffleEnabled(bool enabled) async {
@@ -97,6 +119,8 @@ class _FakeAudio implements AudioController, AudioEffectsController {
   Future<void> dispose() async {
     await _snap.close();
     await _pos.close();
+    await _spectrum.close();
+    await _visualizerSupport.close();
   }
 }
 
@@ -162,6 +186,21 @@ void main() {
     expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
     await tester.tap(find.byIcon(Icons.play_arrow));
     expect(audio.plays, 1);
+  });
+
+  test('formats hour-long position and duration as H:MM:SS', () {
+    expect(
+      formatPlaybackDuration(const Duration(hours: 1, minutes: 1, seconds: 2)),
+      '1:01:02',
+    );
+    expect(
+      formatPlaybackDuration(const Duration(hours: 1, minutes: 2, seconds: 3)),
+      '1:02:03',
+    );
+    expect(
+      formatPlaybackDuration(const Duration(minutes: 9, seconds: 8)),
+      '09:08',
+    );
   });
 
   testWidgets('equalizer panel delegates preset changes', (tester) async {
@@ -235,10 +274,35 @@ void main() {
     await tester.pump();
 
     expect(find.text('Network issue while loading audio'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Dismiss'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+    await tester.pump();
+    expect(audio.plays, 1);
+    expect(find.byType(MaterialBanner), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Dismiss'));
     await tester.pump();
     expect(find.byType(MaterialBanner), findsNothing);
+  });
+
+  testWidgets('does not offer retry for an error without a current track', (
+    tester,
+  ) async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(
+      const PlaybackSnapshot(
+        status: PlaybackStatus.error,
+        error: ParseFailure('No playable tracks'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(MaterialBanner), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
+    expect(find.widgetWithText(TextButton, 'Dismiss'), findsOneWidget);
   });
 
   testWidgets('close controls dismiss the fullscreen player', (tester) async {
@@ -306,5 +370,166 @@ void main() {
     expect(find.byType(MaterialBanner), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.byType(SnackBar), findsOneWidget);
+  });
+
+  testWidgets('visualizer paints decoded PCM spectrum frames', (tester) async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.playing,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('player-visualizer-toggle')));
+    await tester.pump();
+    expect(audio._spectrum.hasListener, isTrue);
+
+    audio._spectrum.add(
+      AudioSpectrumFrame(
+        sampleRate: 48000,
+        timestamp: const Duration(milliseconds: 40),
+        magnitudes: const [0.1, 0.45, 0.9],
+      ),
+    );
+    await tester.pump();
+
+    final visualizer = tester.widget<AudioSpectrumVisualizer>(
+      find.byKey(const Key('player-visualizer-bars')),
+    );
+    expect(visualizer.magnitudes, const [0.1, 0.45, 0.9]);
+  });
+
+  testWidgets('visualizer toggle is disabled when PCM capture is unavailable', (
+    tester,
+  ) async {
+    final audio = _FakeAudio()
+      ..spectrumSupport = AudioVisualizerSupport.unavailable;
+    final vm = PlayerViewModel(audio);
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.playing,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
+
+    final toggle = tester.widget<IconButton>(
+      find.byKey(const Key('player-visualizer-toggle')),
+    );
+    expect(toggle.onPressed, isNull);
+    expect(find.byKey(const Key('player-visualizer')), findsNothing);
+  });
+
+  testWidgets('small landscape player scrolls without layout overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 320);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -400),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('player-eq-panel')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('transport and audio buttons expose accessible tooltips', (
+    tester,
+  ) async {
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
+
+    for (final key in const [
+      Key('player-shuffle-button'),
+      Key('player-previous-button'),
+      Key('player-play-pause-button'),
+      Key('player-next-button'),
+      Key('player-visualizer-toggle'),
+      Key('player-volume-mute-button'),
+    ]) {
+      final button = tester.widget<IconButton>(find.byKey(key));
+      expect(
+        button.tooltip,
+        isNotEmpty,
+        reason: '$key needs an accessible name',
+      );
+    }
+  });
+
+  testWidgets('very narrow player wraps controls and exposes shuffle state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(300, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    final audio = _FakeAudio();
+    final vm = PlayerViewModel(audio);
+
+    await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+    audio._snap.add(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('player-shuffle-semantics')))
+          .flagsCollection
+          .isSelected,
+      Tristate.isFalse,
+    );
+
+    await tester.tap(find.byKey(const Key('player-shuffle-button')));
+    await tester.pump();
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('player-shuffle-semantics')))
+          .flagsCollection
+          .isSelected,
+      Tristate.isTrue,
+    );
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 }

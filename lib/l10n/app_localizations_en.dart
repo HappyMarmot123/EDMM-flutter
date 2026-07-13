@@ -63,6 +63,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerDismiss => 'Dismiss';
 
   @override
+  String get playerShuffle => 'Shuffle';
+
+  @override
+  String get playerPrevious => 'Previous track';
+
+  @override
+  String get playerPlay => 'Play';
+
+  @override
+  String get playerPause => 'Pause';
+
+  @override
+  String get playerNext => 'Next track';
+
+  @override
+  String get playerVisualizerEnable => 'Show audio spectrum';
+
+  @override
+  String get playerVisualizerDisable => 'Hide audio spectrum';
+
+  @override
+  String get playerVisualizerUnavailable =>
+      'Audio spectrum is unavailable for this output';
+
+  @override
+  String get playerMute => 'Mute';
+
+  @override
+  String get playerUnmute => 'Unmute';
+
+  @override
+  String get playerOpen => 'Open full player';
+
+  @override
   String get playerEqualizer => 'Equalizer';
 
   @override
@@ -118,4 +152,85 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackErrorInvalidData => 'Playback data is invalid';
+
+  @override
+  String get libraryTitle => 'Library';
+
+  @override
+  String get favoritesTitle => 'Favorites';
+
+  @override
+  String get favoritesEmpty => 'No favorite tracks yet';
+
+  @override
+  String get playlistsTitle => 'Playlists';
+
+  @override
+  String get playlistsEmpty => 'No playlists yet';
+
+  @override
+  String get playlistCreate => 'Create playlist';
+
+  @override
+  String get playlistName => 'Playlist name';
+
+  @override
+  String get playlistDelete => 'Delete playlist';
+
+  @override
+  String get playlistTracksEmpty => 'This playlist is empty';
+
+  @override
+  String get playlistNotFound => 'Playlist not found';
+
+  @override
+  String get removeFromPlaylist => 'Remove from playlist';
+
+  @override
+  String get libraryStorageError => 'Couldn\'t access the local library';
+
+  @override
+  String get trackUnavailable => 'Track details are unavailable';
+
+  @override
+  String get trackDetailsTitle => 'Track details';
+
+  @override
+  String get trackNotFound => 'Track not found';
+
+  @override
+  String get trackDetailLoadError => 'Couldn\'t load track details';
+
+  @override
+  String get trackPlay => 'Play';
+
+  @override
+  String get favoriteAdd => 'Add to favorites';
+
+  @override
+  String get favoriteRemove => 'Remove from favorites';
+
+  @override
+  String get playlistAdd => 'Add to playlist';
+
+  @override
+  String get playlistAdded => 'Added to playlist';
+
+  @override
+  String get albumLabel => 'Album';
+
+  @override
+  String get sourceLabel => 'Source';
+
+  @override
+  String get durationLabel => 'Duration';
+
+  @override
+  String get metadataTitle => 'Metadata';
+
+  @override
+  String get unknownAlbum => 'Unknown album';
+
+  @override
+  String get openTrackDetails => 'Open track details';
 }

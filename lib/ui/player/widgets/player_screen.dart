@@ -1,17 +1,34 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/audio/audio_effects_controller.dart';
+import '../../../domain/audio/audio_visualizer_controller.dart';
 import '../../../domain/playback/playback_snapshot.dart';
 import '../../../domain/result.dart';
 import '../../../l10n/app_localizations.dart';
 import '../view_model/player_view_model.dart';
 
+String formatPlaybackDuration(Duration duration) {
+  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+  if (duration.inHours > 0) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    return '${duration.inHours}:$minutes:$seconds';
+  }
+  return '${duration.inMinutes.toString().padLeft(2, '0')}:$seconds';
+}
+
 class PlayerScreen extends StatefulWidget {
-  const PlayerScreen({super.key, required this.viewModel, this.onClose});
+  const PlayerScreen({
+    super.key,
+    required this.viewModel,
+    this.onClose,
+    this.disposeViewModel = true,
+  });
   final PlayerViewModel viewModel;
   final VoidCallback? onClose;
+  final bool disposeViewModel;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -30,24 +47,24 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
-    _snapController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-    )..addListener(() {
-      final t = Curves.easeOut.transform(_snapController.value);
-      setState(() => _dragOffset = _snapFrom * (1 - t));
-    });
+    _snapController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 220),
+        )..addListener(() {
+          final t = Curves.easeOut.transform(_snapController.value);
+          setState(() => _dragOffset = _snapFrom * (1 - t));
+        });
   }
 
   @override
   void dispose() {
     _snapController.dispose();
-    widget.viewModel.dispose();
+    if (widget.disposeViewModel) {
+      widget.viewModel.dispose();
+    }
     super.dispose();
   }
-
-  String _fmt(Duration d) =>
-      '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
 
   IconData _volumeIcon(PlayerViewModel vm) {
     if (vm.isMuted || vm.volume <= 0) return Icons.volume_off;
@@ -147,62 +164,81 @@ class _PlayerScreenState extends State<PlayerScreen>
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: ListenableBuilder(
-            listenable: widget.viewModel,
-            builder: (context, _) {
-              final vm = widget.viewModel;
-              final track = vm.snapshot.currentTrack;
-              if (!vm.shouldShowErrorBanner) {
-                _lastErrorToastToken = null;
-              }
+                        listenable: widget.viewModel,
+                        builder: (context, _) {
+                          final vm = widget.viewModel;
+                          final track = vm.snapshot.currentTrack;
+                          if (!vm.shouldShowErrorBanner) {
+                            _lastErrorToastToken = null;
+                          }
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (vm.shouldShowErrorBanner) ...[
-                    Builder(
-                      builder: (context) {
-                        final errorToken = vm.latestErrorToken;
-                        if (errorToken != null &&
-                            errorToken != _lastErrorToastToken) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).clearSnackBars();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  _errorText(l10n, vm.snapshot.error!),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (vm.shouldShowErrorBanner) ...[
+                                Builder(
+                                  builder: (context) {
+                                    final errorToken = vm.latestErrorToken;
+                                    if (errorToken != null &&
+                                        errorToken != _lastErrorToastToken) {
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).clearSnackBars();
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  _errorText(
+                                                    l10n,
+                                                    vm.snapshot.error!,
+                                                  ),
+                                                ),
+                                                duration: const Duration(
+                                                  seconds: 4,
+                                                ),
+                                              ),
+                                            );
+                                          });
+                                      _lastErrorToastToken = errorToken;
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
                                 ),
-                                duration: const Duration(seconds: 4),
-                              ),
-                            );
-                          });
-                          _lastErrorToastToken = errorToken;
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                    MaterialBanner(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.errorContainer,
-                      content: Text(_errorText(l10n, vm.snapshot.error!)),
-                      actions: [
-                        TextButton(
-                          onPressed: vm.dismissError,
-                          child: Text(l10n.playerDismiss),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (track == null)
-                    Expanded(
-                      child: Center(child: Text(l10n.playerNoTrackLoaded)),
-                    )
-                  else
-                    Expanded(child: _buildExpandedBody(vm, l10n)),
-                ],
-              );
-            },
+                                MaterialBanner(
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.errorContainer,
+                                  content: Text(
+                                    _errorText(l10n, vm.snapshot.error!),
+                                  ),
+                                  actions: [
+                                    if (vm.canRetryPlayback)
+                                      TextButton(
+                                        onPressed: vm.retryPlayback,
+                                        child: Text(l10n.retry),
+                                      ),
+                                    TextButton(
+                                      onPressed: vm.dismissError,
+                                      child: Text(l10n.playerDismiss),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (track == null)
+                                Expanded(
+                                  child: Center(
+                                    child: Text(l10n.playerNoTrackLoaded),
+                                  ),
+                                )
+                              else
+                                Expanded(child: _buildExpandedBody(vm, l10n)),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -217,129 +253,179 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Widget _buildExpandedBody(PlayerViewModel vm, AppLocalizations l10n) {
     final track = vm.snapshot.currentTrack!;
+    final visualizerAvailable =
+        vm.visualizerSupport == AudioVisualizerSupport.supported;
 
-    return Column(
-      children: [
-        Text(
-          _statusText(l10n, vm.snapshot.status),
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: Center(
-            child: track.artworkUrl.isNotEmpty
-                ? Image.network(
-                    track.artworkUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.album, size: 160),
-                  )
-                : const Icon(Icons.album, size: 160),
-          ),
-        ),
-        Text(track.title, style: Theme.of(context).textTheme.titleLarge),
-        Text(track.artistName.isEmpty ? l10n.unknownArtist : track.artistName),
-        if (_visualizerEnabled)
-          SizedBox(
-            height: 72,
-            child: _PlaybackVisualizer(
-              key: const Key('player-visualizer'),
-              position: vm.position,
-              trackId: track.id,
-            ),
-          ),
-        const SizedBox(height: 16),
-        StreamBuilder<Duration>(
-          stream: vm.position,
-          builder: (context, snap) {
-            final pos = snap.data ?? Duration.zero;
-            final total = vm.snapshot.duration.inMilliseconds == 0
-                ? 1
-                : vm.snapshot.duration.inMilliseconds;
-            return Column(
-              children: [
-                Slider(
-                  key: const Key('player-progress-slider'),
-                  value: pos.inMilliseconds.clamp(0, total).toDouble(),
-                  max: total.toDouble(),
-                  onChanged: (value) =>
-                      vm.seek(Duration(milliseconds: value.round())),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final artworkSize = math.min(
+          260.0,
+          math.max(120.0, constraints.maxHeight * 0.3),
+        );
+        return SingleChildScrollView(
+          key: const Key('player-scroll-view'),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            children: [
+              Text(
+                _statusText(l10n, vm.snapshot.status),
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 12),
+              SizedBox.square(
+                dimension: artworkSize,
+                child: track.artworkUrl.isNotEmpty
+                    ? Image.network(
+                        track.artworkUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.album, size: 120),
+                      )
+                    : const Icon(Icons.album, size: 120),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                track.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              Text(
+                track.artistName.isEmpty
+                    ? l10n.unknownArtist
+                    : track.artistName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+              if (_visualizerEnabled && visualizerAvailable)
+                SizedBox(
+                  height: 72,
+                  child: _PlaybackVisualizer(
+                    key: const Key('player-visualizer'),
+                    spectrum: vm.spectrum,
+                  ),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [Text(_fmt(pos)), Text(_fmt(vm.snapshot.duration))],
-                ),
-              ],
-            );
-          },
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              key: const Key('player-shuffle-button'),
-              iconSize: 38,
-              icon: Icon(
-                vm.isShuffleEnabled ? Icons.shuffle_on : Icons.shuffle,
-                color: vm.isShuffleEnabled
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
+              const SizedBox(height: 16),
+              StreamBuilder<Duration>(
+                stream: vm.position,
+                builder: (context, snap) {
+                  final pos = snap.data ?? Duration.zero;
+                  final total = vm.snapshot.duration.inMilliseconds == 0
+                      ? 1
+                      : vm.snapshot.duration.inMilliseconds;
+                  return Column(
+                    children: [
+                      Slider(
+                        key: const Key('player-progress-slider'),
+                        value: pos.inMilliseconds.clamp(0, total).toDouble(),
+                        max: total.toDouble(),
+                        onChanged: (value) =>
+                            vm.seek(Duration(milliseconds: value.round())),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(formatPlaybackDuration(pos)),
+                          Text(formatPlaybackDuration(vm.snapshot.duration)),
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
-              onPressed: vm.toggleShuffle,
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              iconSize: 36,
-              icon: const Icon(Icons.skip_previous),
-              onPressed: vm.previous,
-            ),
-            IconButton(
-              iconSize: 56,
-              icon: Icon(
-                vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
+              Wrap(
+                alignment: WrapAlignment.center,
+                children: [
+                  Semantics(
+                    key: const Key('player-shuffle-semantics'),
+                    selected: vm.isShuffleEnabled,
+                    child: IconButton(
+                      key: const Key('player-shuffle-button'),
+                      tooltip: l10n.playerShuffle,
+                      iconSize: 38,
+                      icon: Icon(
+                        vm.isShuffleEnabled ? Icons.shuffle_on : Icons.shuffle,
+                        color: vm.isShuffleEnabled
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                      onPressed: vm.toggleShuffle,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('player-previous-button'),
+                    tooltip: l10n.playerPrevious,
+                    iconSize: 36,
+                    icon: const Icon(Icons.skip_previous),
+                    onPressed: vm.previous,
+                  ),
+                  IconButton(
+                    key: const Key('player-play-pause-button'),
+                    tooltip: vm.snapshot.isPlaying
+                        ? l10n.playerPause
+                        : l10n.playerPlay,
+                    iconSize: 56,
+                    icon: Icon(
+                      vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
+                    ),
+                    onPressed: vm.playPause,
+                  ),
+                  IconButton(
+                    key: const Key('player-next-button'),
+                    tooltip: l10n.playerNext,
+                    iconSize: 36,
+                    icon: const Icon(Icons.skip_next),
+                    onPressed: vm.next,
+                  ),
+                  IconButton(
+                    key: const Key('player-visualizer-toggle'),
+                    tooltip: !visualizerAvailable
+                        ? l10n.playerVisualizerUnavailable
+                        : _visualizerEnabled
+                        ? l10n.playerVisualizerDisable
+                        : l10n.playerVisualizerEnable,
+                    iconSize: 28,
+                    icon: Icon(
+                      _visualizerEnabled
+                          ? Icons.graphic_eq
+                          : Icons.bar_chart_outlined,
+                    ),
+                    onPressed: visualizerAvailable
+                        ? () => setState(
+                            () => _visualizerEnabled = !_visualizerEnabled,
+                          )
+                        : null,
+                  ),
+                ],
               ),
-              onPressed: vm.playPause,
-            ),
-            IconButton(
-              iconSize: 36,
-              icon: const Icon(Icons.skip_next),
-              onPressed: vm.next,
-            ),
-            IconButton(
-              key: const Key('player-visualizer-toggle'),
-              iconSize: 28,
-              icon: Icon(
-                _visualizerEnabled
-                    ? Icons.graphic_eq
-                    : Icons.bar_chart_outlined,
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  IconButton(
+                    key: const Key('player-volume-mute-button'),
+                    tooltip: vm.isMuted ? l10n.playerUnmute : l10n.playerMute,
+                    icon: Icon(_volumeIcon(vm)),
+                    onPressed: vm.toggleMute,
+                  ),
+                  Expanded(
+                    child: Slider(
+                      key: const Key('player-volume-slider'),
+                      value: vm.volume,
+                      min: 0,
+                      max: 1,
+                      onChanged: vm.setVolume,
+                    ),
+                  ),
+                  Text('${(vm.volume * 100).round()}%'),
+                ],
               ),
-              onPressed: () =>
-                  setState(() => _visualizerEnabled = !_visualizerEnabled),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            IconButton(
-              key: const Key('player-volume-mute-button'),
-              icon: Icon(_volumeIcon(vm)),
-              onPressed: vm.toggleMute,
-            ),
-            Expanded(
-              child: Slider(
-                key: const Key('player-volume-slider'),
-                value: vm.volume,
-                min: 0,
-                max: 1,
-                onChanged: vm.setVolume,
-              ),
-            ),
-            Text('${(vm.volume * 100).round()}%'),
-          ],
-        ),
-        _EqualizerPanel(viewModel: vm, l10n: l10n),
-      ],
+              _EqualizerPanel(viewModel: vm, l10n: l10n),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -357,9 +443,9 @@ class _EqualizerPanel extends StatelessWidget {
             AudioEqualizerSupport.unsupportedOnPlatform
         ? l10n.playerEqualizerUnsupportedPlatform
         : l10n.playerEqualizerUnavailable;
-    return SizedBox(
+    return ConstrainedBox(
       key: const Key('player-eq-panel'),
-      height: 92,
+      constraints: const BoxConstraints(minHeight: 72),
       child: viewModel.equalizerSupport != AudioEqualizerSupport.supported
           ? Center(
               child: Text(
@@ -436,42 +522,45 @@ class _EqualizerPresetChip extends StatelessWidget {
 }
 
 class _PlaybackVisualizer extends StatelessWidget {
-  const _PlaybackVisualizer({
-    super.key,
-    required this.position,
-    required this.trackId,
-  });
+  const _PlaybackVisualizer({super.key, required this.spectrum});
 
-  final Stream<Duration> position;
-  final String trackId;
+  final Stream<AudioSpectrumFrame> spectrum;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Duration>(
-      stream: position,
+    return StreamBuilder<AudioSpectrumFrame>(
+      stream: spectrum,
       builder: (context, snapshot) {
-        return CustomPaint(
-          painter: _VisualizerPainter(
-            position: snapshot.data ?? Duration.zero,
-            seed: trackId.hashCode,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          child: const SizedBox.expand(),
+        return AudioSpectrumVisualizer(
+          key: const Key('player-visualizer-bars'),
+          magnitudes: snapshot.data?.magnitudes ?? const <double>[],
         );
       },
     );
   }
 }
 
-class _VisualizerPainter extends CustomPainter {
-  const _VisualizerPainter({
-    required this.position,
-    required this.seed,
-    required this.color,
-  });
+class AudioSpectrumVisualizer extends StatelessWidget {
+  const AudioSpectrumVisualizer({super.key, required this.magnitudes});
 
-  final Duration position;
-  final int seed;
+  final List<double> magnitudes;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _VisualizerPainter(
+        magnitudes: magnitudes,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _VisualizerPainter extends CustomPainter {
+  const _VisualizerPainter({required this.magnitudes, required this.color});
+
+  final List<double> magnitudes;
   final Color color;
 
   @override
@@ -479,18 +568,16 @@ class _VisualizerPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
-    const barCount = 24;
+    final barCount = magnitudes.length;
+    if (barCount == 0 || size.isEmpty) return;
     final gap = size.width / (barCount * 3);
     final barWidth = (size.width - gap * (barCount - 1)) / barCount;
-    final phase = position.inMilliseconds / 220.0;
 
     for (var i = 0; i < barCount; i++) {
-      final wave = math.sin(phase + i * 0.72 + seed % 11);
-      final pulse = math.cos(phase * 0.37 + i * 1.31);
-      final normalized = ((wave + pulse) / 4.0 + 0.5).clamp(0.12, 1.0);
+      final normalized = magnitudes[i].clamp(0.0, 1.0);
       final height = size.height * normalized;
       final left = i * (barWidth + gap);
-      final top = (size.height - height) / 2;
+      final top = size.height - height;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(left, top, barWidth, height),
@@ -503,8 +590,7 @@ class _VisualizerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _VisualizerPainter oldDelegate) {
-    return oldDelegate.position != position ||
-        oldDelegate.seed != seed ||
+    return !listEquals(oldDelegate.magnitudes, magnitudes) ||
         oldDelegate.color != color;
   }
 }
