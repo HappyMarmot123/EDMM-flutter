@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.44.4
+          flutter-version: 3.44.5
           channel: stable
           cache: true
       - run: flutter pub get
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.44.4
+          flutter-version: 3.44.5
           channel: stable
           cache: true
       - run: flutter pub get
@@ -48,8 +48,46 @@ jobs:
           cache: gradle
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.44.4
+          flutter-version: 3.44.5
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --release
+      - name: Build release Android App Bundle
+        run: flutter build appbundle --release --split-debug-info=build/symbols/android
+      - name: Enforce Android App Bundle size budgets
+        shell: pwsh
+        run: ./tool/check_android_bundle_size.ps1 -ReportPath build/android-bundle-size-report.json
+      - name: Upload validation bundle, symbols, and size report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-bundle-${{ github.sha }}
+          path: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/symbols/android/
+            build/android-bundle-size-report.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Generate detailed arm64 size analysis
+        if: github.event_name == 'workflow_dispatch'
+        run: >-
+          flutter build appbundle --release
+          --analyze-size
+          --target-platform=android-arm64
+          --code-size-directory=build/size-analysis/android-arm64
+      - name: Collect DevTools app-size summary
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $summary = Get-ChildItem "$HOME/.flutter-devtools" -Filter "aab-code-size-analysis_*.json" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $summary) { throw "Flutter DevTools app-size summary was not generated." }
+          Copy-Item $summary.FullName build/size-analysis/android-arm64/
+      - name: Upload detailed arm64 size analysis
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64-size-analysis-${{ github.sha }}
+          path: build/size-analysis/android-arm64/
+          retention-days: 30

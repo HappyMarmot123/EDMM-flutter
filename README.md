@@ -1,20 +1,10 @@
-# edmm
+# EDMM
 
-A new Flutter project.
+Flutter mobile client for the EDMM music catalog and player.
 
-## Getting Started
+Android bundle budgets and investigation steps are documented in
+[`docs/android-app-bundle-size-strategy.md`](docs/android-app-bundle-size-strategy.md).
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
 
 1. 먼저 앱 실행 준비
 
@@ -62,10 +52,12 @@ samples, guidance on mobile development, and a full API reference.
 |---|---|---|
 | `analyze-and-test` | ubuntu | `flutter analyze` + `flutter test` |
 | `build-ios` | macOS | `flutter build ios --no-codesign` (서명 없는 iOS 빌드 검증) |
-| `build-android` | ubuntu | `flutter build apk --release` (릴리스 APK 빌드 검증) |
+| `build-android` | ubuntu | AAB 빌드, 심볼 분리, 번들 크기 예산 검사 |
 
 세 job은 서로 의존 없이 병렬로 돈다. iOS만 macOS 러너를 쓰고(분당 과금이 높음), Android는 Linux에서 빌드되므로 저렴한 ubuntu 러너를 쓴다.
 
 **iOS 빌드를 CI에 둔 이유**: iOS는 Windows 개발 환경에서 빌드할 수 없어, macOS 러너가 유일한 빌드 검증 수단이다.
 
-**Android 빌드도 CI에서 검증한다**: 로컬 Windows에서도 `flutter build apk`로 빌드할 수 있지만, CI에서 릴리스 APK 빌드를 자동 검증해 Android 전용 회귀(Gradle/AGP, R8 등)를 조기에 잡는다.
+**Android 빌드도 CI에서 검증한다**: CI는 Play 배포 형식인 AAB를 만들고,
+ABI·DEX·assets·resources별 크기 예산을 검사해 Android 전용 회귀와 번들
+증가를 조기에 잡는다.
