@@ -1,4 +1,5 @@
 import 'package:edmm/domain/audio/audio_settings.dart';
+import 'package:edmm/domain/audio/audio_visualizer_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -24,5 +25,10 @@ void main() {
     expect(volumeSettingKey, 'volume');
     expect(mutedSettingKey, 'muted');
     expect(shuffleSettingKey, 'shuffle');
+    expect(visualizerEnabledSettingKey, 'visualizer.enabled');
+  });
+
+  test('visualizer defaults to enabled', () {
+    expect(defaultAudioVisualizerEnabled, isTrue);
   });
 }

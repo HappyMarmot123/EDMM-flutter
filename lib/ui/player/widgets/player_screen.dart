@@ -37,8 +37,8 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen>
     with SingleTickerProviderStateMixin {
   static const double _dismissThreshold = 120;
+  static const double _maxContentWidth = 560;
 
-  bool _visualizerEnabled = false;
   String? _lastErrorToastToken;
   double _dragOffset = 0;
   double _snapFrom = 0;
@@ -149,7 +149,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     onVerticalDragEnd: _handleCloseDragEnd,
                     child: SizedBox(
                       width: double.infinity,
-                      height: 44,
+                      height: 48,
                       child: Center(
                         child: IconButton(
                           key: const Key('player-close-button'),
@@ -258,171 +258,219 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final density = _PlayerLayoutDensity.forHeight(constraints.maxHeight);
+        final contentWidth = math.min(_maxContentWidth, constraints.maxWidth);
+        final artworkMax = math.min(260.0, math.max(96.0, contentWidth * 0.72));
         final artworkSize = math.min(
-          260.0,
-          math.max(120.0, constraints.maxHeight * 0.3),
+          artworkMax,
+          math.max(
+            density.minimumArtworkSize,
+            constraints.maxHeight - density.controlsHeightBudget,
+          ),
         );
-        return SingleChildScrollView(
-          key: const Key('player-scroll-view'),
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Column(
-            children: [
-              Text(
-                _statusText(l10n, vm.snapshot.status),
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              const SizedBox(height: 12),
-              SizedBox.square(
-                dimension: artworkSize,
-                child: track.artworkUrl.isNotEmpty
-                    ? Image.network(
-                        track.artworkUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.album, size: 120),
-                      )
-                    : const Icon(Icons.album, size: 120),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                track.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              Text(
-                track.artistName.isEmpty
-                    ? l10n.unknownArtist
-                    : track.artistName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-              if (_visualizerEnabled && visualizerAvailable)
-                SizedBox(
-                  height: 72,
-                  child: _PlaybackVisualizer(
-                    key: const Key('player-visualizer'),
-                    spectrum: vm.spectrum,
-                  ),
+
+        return Center(
+          child: SizedBox(
+            width: contentWidth,
+            child: SingleChildScrollView(
+              key: const Key('player-scroll-view'),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  key: const Key('player-content-column'),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _statusText(l10n, vm.snapshot.status),
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    SizedBox(height: density.sectionGap),
+                    Center(
+                      child: SizedBox.square(
+                        key: const Key('player-artwork'),
+                        dimension: artworkSize,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            density.artworkRadius,
+                          ),
+                          child: ColoredBox(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            child: track.artworkUrl.isNotEmpty
+                                ? Image.network(
+                                    track.artworkUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Icon(Icons.album, size: 120),
+                                  )
+                                : const Icon(Icons.album, size: 120),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: density.sectionGap),
+                    Text(
+                      track.title,
+                      maxLines: density.metadataMaxLines,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Text(
+                      track.artistName.isEmpty
+                          ? l10n.unknownArtist
+                          : track.artistName,
+                      maxLines: density.metadataMaxLines,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    if (vm.isVisualizerEnabled && visualizerAvailable) ...[
+                      SizedBox(height: density.visualizerGap),
+                      SizedBox(
+                        height: density.visualizerHeight,
+                        child: _PlaybackVisualizer(
+                          key: const Key('player-visualizer'),
+                          spectrum: vm.spectrum,
+                        ),
+                      ),
+                    ] else if (vm.isVisualizerEnabled)
+                      _SpectrumRecoveryListener(spectrum: vm.spectrum),
+                    SizedBox(height: density.controlsGap),
+                    StreamBuilder<Duration>(
+                      stream: vm.position,
+                      builder: (context, snap) {
+                        final pos = snap.data ?? Duration.zero;
+                        final total = vm.snapshot.duration.inMilliseconds == 0
+                            ? 1
+                            : vm.snapshot.duration.inMilliseconds;
+                        return Column(
+                          children: [
+                            Slider(
+                              key: const Key('player-progress-slider'),
+                              value: pos.inMilliseconds
+                                  .clamp(0, total)
+                                  .toDouble(),
+                              max: total.toDouble(),
+                              onChanged: (value) => vm.seek(
+                                Duration(milliseconds: value.round()),
+                              ),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(formatPlaybackDuration(pos)),
+                                Text(
+                                  formatPlaybackDuration(vm.snapshot.duration),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    Wrap(
+                      key: const Key('player-transport-controls'),
+                      alignment: WrapAlignment.center,
+                      children: [
+                        Semantics(
+                          key: const Key('player-shuffle-semantics'),
+                          selected: vm.isShuffleEnabled,
+                          child: IconButton(
+                            key: const Key('player-shuffle-button'),
+                            tooltip: l10n.playerShuffle,
+                            iconSize: 38,
+                            icon: Icon(
+                              vm.isShuffleEnabled
+                                  ? Icons.shuffle_on
+                                  : Icons.shuffle,
+                              color: vm.isShuffleEnabled
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            onPressed: vm.toggleShuffle,
+                          ),
+                        ),
+                        IconButton(
+                          key: const Key('player-previous-button'),
+                          tooltip: l10n.playerPrevious,
+                          iconSize: 36,
+                          icon: const Icon(Icons.skip_previous),
+                          onPressed: vm.previous,
+                        ),
+                        IconButton(
+                          key: const Key('player-play-pause-button'),
+                          tooltip: vm.snapshot.isPlaying
+                              ? l10n.playerPause
+                              : l10n.playerPlay,
+                          iconSize: 56,
+                          icon: Icon(
+                            vm.snapshot.isPlaying
+                                ? Icons.pause
+                                : Icons.play_arrow,
+                          ),
+                          onPressed: vm.playPause,
+                        ),
+                        IconButton(
+                          key: const Key('player-next-button'),
+                          tooltip: l10n.playerNext,
+                          iconSize: 36,
+                          icon: const Icon(Icons.skip_next),
+                          onPressed: vm.next,
+                        ),
+                        IconButton(
+                          key: const Key('player-visualizer-toggle'),
+                          tooltip: !visualizerAvailable
+                              ? l10n.playerVisualizerUnavailable
+                              : vm.isVisualizerEnabled
+                              ? l10n.playerVisualizerDisable
+                              : l10n.playerVisualizerEnable,
+                          iconSize: 28,
+                          icon: Icon(
+                            vm.isVisualizerEnabled
+                                ? Icons.graphic_eq
+                                : Icons.bar_chart_outlined,
+                          ),
+                          onPressed: visualizerAvailable
+                              ? vm.toggleVisualizer
+                              : null,
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: density.transportToVolumeGap),
+                    Row(
+                      key: const Key('player-volume-controls'),
+                      children: [
+                        IconButton(
+                          key: const Key('player-volume-mute-button'),
+                          tooltip: vm.isMuted
+                              ? l10n.playerUnmute
+                              : l10n.playerMute,
+                          icon: Icon(_volumeIcon(vm)),
+                          onPressed: vm.toggleMute,
+                        ),
+                        Expanded(
+                          child: Slider(
+                            key: const Key('player-volume-slider'),
+                            value: vm.volume,
+                            min: 0,
+                            max: 1,
+                            onChanged: vm.setVolume,
+                          ),
+                        ),
+                        Text('${(vm.volume * 100).round()}%'),
+                      ],
+                    ),
+                    _EqualizerPanel(
+                      viewModel: vm,
+                      l10n: l10n,
+                      compact: density.isCompact,
+                    ),
+                  ],
                 ),
-              const SizedBox(height: 16),
-              StreamBuilder<Duration>(
-                stream: vm.position,
-                builder: (context, snap) {
-                  final pos = snap.data ?? Duration.zero;
-                  final total = vm.snapshot.duration.inMilliseconds == 0
-                      ? 1
-                      : vm.snapshot.duration.inMilliseconds;
-                  return Column(
-                    children: [
-                      Slider(
-                        key: const Key('player-progress-slider'),
-                        value: pos.inMilliseconds.clamp(0, total).toDouble(),
-                        max: total.toDouble(),
-                        onChanged: (value) =>
-                            vm.seek(Duration(milliseconds: value.round())),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(formatPlaybackDuration(pos)),
-                          Text(formatPlaybackDuration(vm.snapshot.duration)),
-                        ],
-                      ),
-                    ],
-                  );
-                },
               ),
-              Wrap(
-                alignment: WrapAlignment.center,
-                children: [
-                  Semantics(
-                    key: const Key('player-shuffle-semantics'),
-                    selected: vm.isShuffleEnabled,
-                    child: IconButton(
-                      key: const Key('player-shuffle-button'),
-                      tooltip: l10n.playerShuffle,
-                      iconSize: 38,
-                      icon: Icon(
-                        vm.isShuffleEnabled ? Icons.shuffle_on : Icons.shuffle,
-                        color: vm.isShuffleEnabled
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                      ),
-                      onPressed: vm.toggleShuffle,
-                    ),
-                  ),
-                  IconButton(
-                    key: const Key('player-previous-button'),
-                    tooltip: l10n.playerPrevious,
-                    iconSize: 36,
-                    icon: const Icon(Icons.skip_previous),
-                    onPressed: vm.previous,
-                  ),
-                  IconButton(
-                    key: const Key('player-play-pause-button'),
-                    tooltip: vm.snapshot.isPlaying
-                        ? l10n.playerPause
-                        : l10n.playerPlay,
-                    iconSize: 56,
-                    icon: Icon(
-                      vm.snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
-                    ),
-                    onPressed: vm.playPause,
-                  ),
-                  IconButton(
-                    key: const Key('player-next-button'),
-                    tooltip: l10n.playerNext,
-                    iconSize: 36,
-                    icon: const Icon(Icons.skip_next),
-                    onPressed: vm.next,
-                  ),
-                  IconButton(
-                    key: const Key('player-visualizer-toggle'),
-                    tooltip: !visualizerAvailable
-                        ? l10n.playerVisualizerUnavailable
-                        : _visualizerEnabled
-                        ? l10n.playerVisualizerDisable
-                        : l10n.playerVisualizerEnable,
-                    iconSize: 28,
-                    icon: Icon(
-                      _visualizerEnabled
-                          ? Icons.graphic_eq
-                          : Icons.bar_chart_outlined,
-                    ),
-                    onPressed: visualizerAvailable
-                        ? () => setState(
-                            () => _visualizerEnabled = !_visualizerEnabled,
-                          )
-                        : null,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  IconButton(
-                    key: const Key('player-volume-mute-button'),
-                    tooltip: vm.isMuted ? l10n.playerUnmute : l10n.playerMute,
-                    icon: Icon(_volumeIcon(vm)),
-                    onPressed: vm.toggleMute,
-                  ),
-                  Expanded(
-                    child: Slider(
-                      key: const Key('player-volume-slider'),
-                      value: vm.volume,
-                      min: 0,
-                      max: 1,
-                      onChanged: vm.setVolume,
-                    ),
-                  ),
-                  Text('${(vm.volume * 100).round()}%'),
-                ],
-              ),
-              _EqualizerPanel(viewModel: vm, l10n: l10n),
-            ],
+            ),
           ),
         );
       },
@@ -430,11 +478,77 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 }
 
+enum _PlayerLayoutDensity {
+  tight,
+  compact,
+  regular;
+
+  static _PlayerLayoutDensity forHeight(double height) {
+    if (height < 500) return tight;
+    if (height < 720) return compact;
+    return regular;
+  }
+
+  bool get isCompact => this != regular;
+
+  double get minimumArtworkSize => switch (this) {
+    tight => 64,
+    compact => 80,
+    regular => 120,
+  };
+
+  // Keeps metadata, progress, transport, volume, and equalizer controls visible;
+  // artwork consumes only the remaining vertical space.
+  double get controlsHeightBudget => switch (this) {
+    tight || compact => 410,
+    regular => 460,
+  };
+
+  double get sectionGap => switch (this) {
+    tight => 2,
+    compact => 4,
+    regular => 12,
+  };
+
+  double get controlsGap => switch (this) {
+    tight => 2,
+    compact => 6,
+    regular => 16,
+  };
+
+  double get artworkRadius => switch (this) {
+    tight => 12,
+    compact => 14,
+    regular => 20,
+  };
+
+  int get metadataMaxLines => isCompact ? 1 : 2;
+
+  double get visualizerGap => switch (this) {
+    tight => 0,
+    compact => 2,
+    regular => 6,
+  };
+
+  double get visualizerHeight => switch (this) {
+    tight => 28,
+    compact => 40,
+    regular => 72,
+  };
+
+  double get transportToVolumeGap => isCompact ? 0 : 4;
+}
+
 class _EqualizerPanel extends StatelessWidget {
-  const _EqualizerPanel({required this.viewModel, required this.l10n});
+  const _EqualizerPanel({
+    required this.viewModel,
+    required this.l10n,
+    required this.compact,
+  });
 
   final PlayerViewModel viewModel;
   final AppLocalizations l10n;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -445,7 +559,7 @@ class _EqualizerPanel extends StatelessWidget {
         : l10n.playerEqualizerUnavailable;
     return ConstrainedBox(
       key: const Key('player-eq-panel'),
-      constraints: const BoxConstraints(minHeight: 72),
+      constraints: BoxConstraints(minHeight: compact ? 48 : 72),
       child: viewModel.equalizerSupport != AudioEqualizerSupport.supported
           ? Center(
               child: Text(
@@ -453,40 +567,35 @@ class _EqualizerPanel extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          : Wrap(
+              alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: compact ? 2 : 6,
               children: [
                 Text(
                   l10n.playerEqualizer,
                   style: Theme.of(context).textTheme.labelMedium,
                 ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _EqualizerPresetChip(
-                      key: const Key('player-eq-preset-flat'),
-                      label: l10n.playerEqualizerPresetFlat,
-                      tooltip: l10n.playerEqualizerPresetFlatHelp,
-                      selected:
-                          viewModel.equalizerPreset ==
-                          AudioEqualizerPreset.flat,
-                      onSelected: () => viewModel.setEqualizerPreset(
-                        AudioEqualizerPreset.flat,
-                      ),
-                    ),
-                    _EqualizerPresetChip(
-                      key: const Key('player-eq-preset-bass'),
-                      label: l10n.playerEqualizerPresetBass,
-                      tooltip: l10n.playerEqualizerPresetBassHelp,
-                      selected:
-                          viewModel.equalizerPreset ==
-                          AudioEqualizerPreset.bassBoost,
-                      onSelected: () => viewModel.setEqualizerPreset(
-                        AudioEqualizerPreset.bassBoost,
-                      ),
-                    ),
-                  ],
+                _EqualizerPresetChip(
+                  key: const Key('player-eq-preset-flat'),
+                  label: l10n.playerEqualizerPresetFlat,
+                  tooltip: l10n.playerEqualizerPresetFlatHelp,
+                  selected:
+                      viewModel.equalizerPreset == AudioEqualizerPreset.flat,
+                  onSelected: () =>
+                      viewModel.setEqualizerPreset(AudioEqualizerPreset.flat),
+                ),
+                _EqualizerPresetChip(
+                  key: const Key('player-eq-preset-bass'),
+                  label: l10n.playerEqualizerPresetBass,
+                  tooltip: l10n.playerEqualizerPresetBassHelp,
+                  selected:
+                      viewModel.equalizerPreset ==
+                      AudioEqualizerPreset.bassBoost,
+                  onSelected: () => viewModel.setEqualizerPreset(
+                    AudioEqualizerPreset.bassBoost,
+                  ),
                 ),
               ],
             ),
@@ -517,6 +626,22 @@ class _EqualizerPresetChip extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onSelected(),
       ),
+    );
+  }
+}
+
+class _SpectrumRecoveryListener extends StatelessWidget {
+  const _SpectrumRecoveryListener({required this.spectrum});
+
+  final Stream<AudioSpectrumFrame> spectrum;
+
+  @override
+  Widget build(BuildContext context) {
+    // Native support updates share this lazy stream subscription. Keeping an
+    // invisible listener lets a later playable PCM format restore the display.
+    return StreamBuilder<AudioSpectrumFrame>(
+      stream: spectrum,
+      builder: (context, snapshot) => const SizedBox.shrink(),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:edmm/data/repositories/in_memory_local_library_repository.dart';
 import 'package:edmm/domain/audio/audio_controller.dart';
 import 'package:edmm/domain/audio/audio_effects_controller.dart';
+import 'package:edmm/domain/audio/audio_visualizer_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
 import 'package:edmm/domain/result.dart';
@@ -163,6 +164,25 @@ class _SequencedVolumeAudio extends _FakeAudio {
   }
 }
 
+class _SequencedVisualizerSettingsRepository
+    extends InMemoryLocalLibraryRepository {
+  final requestedValues = <String>[];
+  final writeGates = <Completer<void>>[];
+
+  @override
+  Future<void> setAudioSetting(String key, String value) async {
+    if (key != visualizerEnabledSettingKey) {
+      await super.setAudioSetting(key, value);
+      return;
+    }
+    requestedValues.add(value);
+    final gate = Completer<void>();
+    writeGates.add(gate);
+    await gate.future;
+    await super.setAudioSetting(key, value);
+  }
+}
+
 void main() {
   test('mirrors snapshot stream and notifies', () async {
     final audio = _FakeAudio();
@@ -306,6 +326,114 @@ void main() {
     expect(vm.equalizerPreset, AudioEqualizerPreset.bassBoost);
     expect(effects.setPresetCalls, [AudioEqualizerPreset.bassBoost]);
     expect(await localLibrary.getAudioSetting('equalizer.preset'), 'bass');
+  });
+
+  test('defaults visualizer to enabled when no setting is stored', () async {
+    final localLibrary = InMemoryLocalLibraryRepository();
+    final vm = PlayerViewModel(_FakeAudio(), localLibrary: localLibrary);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.isVisualizerEnabled, defaultAudioVisualizerEnabled);
+    expect(vm.isVisualizerEnabled, isTrue);
+    expect(
+      await localLibrary.getAudioSetting(visualizerEnabledSettingKey),
+      isNull,
+    );
+  });
+
+  test('restores a stored disabled visualizer preference', () async {
+    final localLibrary = InMemoryLocalLibraryRepository();
+    await localLibrary.setAudioSetting(visualizerEnabledSettingKey, 'false');
+
+    final vm = PlayerViewModel(_FakeAudio(), localLibrary: localLibrary);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(vm.isVisualizerEnabled, isFalse);
+  });
+
+  test('persists visualizer toggle changes', () async {
+    final localLibrary = InMemoryLocalLibraryRepository();
+    final vm = PlayerViewModel(_FakeAudio(), localLibrary: localLibrary);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    await vm.toggleVisualizer();
+
+    expect(vm.isVisualizerEnabled, isFalse);
+    expect(
+      await localLibrary.getAudioSetting(visualizerEnabledSettingKey),
+      'false',
+    );
+
+    await vm.toggleVisualizer();
+
+    expect(vm.isVisualizerEnabled, isTrue);
+    expect(
+      await localLibrary.getAudioSetting(visualizerEnabledSettingKey),
+      'true',
+    );
+  });
+
+  test(
+    'rapid visualizer toggles serialize writes so the latest wins',
+    () async {
+      final localLibrary = _SequencedVisualizerSettingsRepository();
+      final vm = PlayerViewModel(_FakeAudio(), localLibrary: localLibrary);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final first = vm.toggleVisualizer();
+      final second = vm.toggleVisualizer();
+      expect(vm.isVisualizerEnabled, isTrue);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(localLibrary.requestedValues, ['false']);
+      localLibrary.writeGates.first.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(localLibrary.requestedValues, ['false', 'true']);
+      localLibrary.writeGates.last.complete();
+      await Future.wait([first, second]);
+
+      expect(vm.isVisualizerEnabled, isTrue);
+      expect(
+        await localLibrary.getAudioSetting(visualizerEnabledSettingKey),
+        'true',
+      );
+    },
+  );
+
+  test(
+    'visualizer user changes win when its stored setting restores later',
+    () async {
+      final localLibrary = _DelayedSettingsRepository({
+        visualizerEnabledSettingKey: 'true',
+      });
+      final vm = PlayerViewModel(_FakeAudio(), localLibrary: localLibrary);
+
+      await vm.toggleVisualizer();
+      expect(vm.isVisualizerEnabled, isFalse);
+
+      localLibrary.readGate.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.isVisualizerEnabled, isFalse);
+    },
+  );
+
+  test('visualizer setting write failures keep the applied UI state', () async {
+    final vm = PlayerViewModel(
+      _FakeAudio(),
+      localLibrary: _ThrowingSettingsRepository(),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    await expectLater(vm.toggleVisualizer(), completes);
+
+    expect(vm.isVisualizerEnabled, isFalse);
   });
 
   test('restores volume, mute, shuffle, and equalizer settings', () async {

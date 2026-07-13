@@ -1,5 +1,8 @@
 enum AudioVisualizerSupport { supported, unavailable }
 
+const defaultAudioVisualizerEnabled = true;
+const visualizerEnabledSettingKey = 'visualizer.enabled';
+
 class AudioSpectrumFrame {
   AudioSpectrumFrame({
     required this.sampleRate,

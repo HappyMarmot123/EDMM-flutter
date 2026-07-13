@@ -68,6 +68,7 @@ class PlayerViewModel extends ChangeNotifier {
   double _volume = 1.0;
   double _prevVolume = 1.0;
   bool _shuffleEnabled = false;
+  bool _visualizerEnabled = defaultAudioVisualizerEnabled;
   String? _lastPersistedTrackId;
   AudioEqualizerPreset _equalizerPreset = defaultAudioEqualizerPreset;
   late AudioVisualizerSupport _visualizerSupport;
@@ -76,6 +77,7 @@ class PlayerViewModel extends ChangeNotifier {
   int _volumeSettingsRevision = 0;
   int _shuffleSettingsRevision = 0;
   int _equalizerSettingsRevision = 0;
+  int _visualizerSettingsRevision = 0;
   Future<void> _volumeCommandTail = Future<void>.value();
   Future<void> _shuffleCommandTail = Future<void>.value();
   Future<void> _equalizerCommandTail = Future<void>.value();
@@ -89,6 +91,7 @@ class PlayerViewModel extends ChangeNotifier {
   bool get isMuted => _mute;
   double get volume => _volume;
   bool get isShuffleEnabled => _shuffleEnabled;
+  bool get isVisualizerEnabled => _visualizerEnabled;
   bool get isEqualizerEnabled => _equalizerPreset.appliesProcessing;
   AudioEqualizerPreset get equalizerPreset => _equalizerPreset;
   bool get shouldShowErrorBanner =>
@@ -176,6 +179,16 @@ class PlayerViewModel extends ChangeNotifier {
     });
   }
 
+  Future<void> toggleVisualizer() {
+    if (_disposed) return Future<void>.value();
+    _visualizerSettingsRevision += 1;
+    _visualizerEnabled = !_visualizerEnabled;
+    notifyListeners();
+    return _persistSettingsSafely({
+      visualizerEnabledSettingKey: _visualizerEnabled.toString(),
+    });
+  }
+
   bool get hasError => snapshot.error != null;
   void dismissError() {
     _dismissedErrorToken = _latestErrorToken;
@@ -199,11 +212,13 @@ class PlayerViewModel extends ChangeNotifier {
     final volumeRevision = _volumeSettingsRevision;
     final shuffleRevision = _shuffleSettingsRevision;
     final equalizerRevision = _equalizerSettingsRevision;
+    final visualizerRevision = _visualizerSettingsRevision;
     final stored = await Future.wait([
       _readSetting(volumeSettingKey),
       _readSetting(mutedSettingKey),
       _readSetting(shuffleSettingKey),
       _readSetting(equalizerPresetSettingKey),
+      _readSetting(visualizerEnabledSettingKey),
     ]);
     if (_disposed) return;
 
@@ -214,6 +229,7 @@ class PlayerViewModel extends ChangeNotifier {
     );
     await _restoreShuffleSetting(stored[2], shuffleRevision);
     await _restoreEqualizerSetting(stored[3], equalizerRevision);
+    _restoreVisualizerSetting(stored[4], visualizerRevision);
   }
 
   Future<void> _restoreVolumeSettings({
@@ -292,6 +308,14 @@ class PlayerViewModel extends ChangeNotifier {
     });
   }
 
+  void _restoreVisualizerSetting(_SettingRead stored, int revision) {
+    if (!stored.succeeded || !_canRestoreVisualizer(revision)) return;
+    final restored = parseStoredBool(stored.value);
+    if (restored == null || restored == _visualizerEnabled) return;
+    _visualizerEnabled = restored;
+    notifyListeners();
+  }
+
   Future<_SettingRead> _readSetting(String key) async {
     try {
       return _SettingRead.success(await _localLibrary.getAudioSetting(key));
@@ -354,6 +378,9 @@ class PlayerViewModel extends ChangeNotifier {
 
   bool _canRestoreEqualizer(int revision) =>
       !_disposed && revision == _equalizerSettingsRevision;
+
+  bool _canRestoreVisualizer(int revision) =>
+      !_disposed && revision == _visualizerSettingsRevision;
 
   @override
   void dispose() {

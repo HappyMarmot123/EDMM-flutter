@@ -124,11 +124,97 @@ class _FakeAudio
   }
 }
 
-Widget _host(Widget child) => MaterialApp(
+Widget _host(Widget child, {double textScale = 1}) => MaterialApp(
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   supportedLocales: AppLocalizations.supportedLocales,
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(
+      context,
+    ).copyWith(textScaler: TextScaler.linear(textScale)),
+    child: child!,
+  ),
   home: child,
 );
+
+Finder _playerScrollable() => find.descendant(
+  of: find.byKey(const Key('player-scroll-view')),
+  matching: find.byType(Scrollable),
+);
+
+void _expectFullyWithin(
+  WidgetTester tester, {
+  required Finder target,
+  required Finder viewport,
+  required String reason,
+}) {
+  expect(target, findsOneWidget, reason: '$reason must exist');
+  final targetRect = tester.getRect(target);
+  final viewportRect = tester.getRect(viewport);
+  const epsilon = 0.5;
+
+  expect(
+    targetRect.left,
+    greaterThanOrEqualTo(viewportRect.left - epsilon),
+    reason: '$reason left edge $targetRect is outside $viewportRect',
+  );
+  expect(
+    targetRect.top,
+    greaterThanOrEqualTo(viewportRect.top - epsilon),
+    reason: '$reason top edge $targetRect is outside $viewportRect',
+  );
+  expect(
+    targetRect.right,
+    lessThanOrEqualTo(viewportRect.right + epsilon),
+    reason: '$reason right edge $targetRect is outside $viewportRect',
+  );
+  expect(
+    targetRect.bottom,
+    lessThanOrEqualTo(viewportRect.bottom + epsilon),
+    reason: '$reason bottom edge $targetRect is outside $viewportRect',
+  );
+}
+
+void _expectPlayerFitsWithoutScrolling(WidgetTester tester, Size size) {
+  final viewport = find.byKey(const Key('player-scroll-view'));
+  final scrollable = _playerScrollable();
+  expect(scrollable, findsOneWidget);
+  final position = tester.state<ScrollableState>(scrollable).position;
+  final label = '${size.width.toInt()}x${size.height.toInt()}';
+  final viewportRect = tester.getRect(viewport);
+
+  expect(
+    position.pixels,
+    closeTo(0, 0.01),
+    reason: '$label initial scroll offset was ${position.pixels}',
+  );
+  expect(
+    position.maxScrollExtent,
+    closeTo(0, 0.01),
+    reason: '$label maxScrollExtent was ${position.maxScrollExtent}',
+  );
+  expect(
+    viewportRect.width,
+    lessThanOrEqualTo(560.5),
+    reason: '$label player content was too wide: $viewportRect',
+  );
+
+  for (final key in const <Key>[
+    Key('player-content-column'),
+    Key('player-artwork'),
+    Key('player-visualizer'),
+    Key('player-progress-slider'),
+    Key('player-transport-controls'),
+    Key('player-volume-controls'),
+    Key('player-eq-panel'),
+  ]) {
+    _expectFullyWithin(
+      tester,
+      target: find.byKey(key),
+      viewport: viewport,
+      reason: '$label $key',
+    );
+  }
+}
 
 Track _track() => Track(
   id: 'x',
@@ -161,6 +247,18 @@ void main() {
     expect(find.text('Bloom'), findsOneWidget);
     expect(find.byKey(const Key('player-shuffle-button')), findsOneWidget);
     expect(find.byKey(const Key('player-volume-slider')), findsOneWidget);
+    expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
+    expect(audio._spectrum.hasListener, isTrue);
+
+    await tester.tap(find.byKey(const Key('player-visualizer-toggle')));
+    await tester.pump();
+    expect(find.byKey(const Key('player-visualizer')), findsNothing);
+    expect(audio._spectrum.hasListener, isFalse);
+
+    await tester.tap(find.byKey(const Key('player-visualizer-toggle')));
+    await tester.pump();
+    expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
+    expect(audio._spectrum.hasListener, isTrue);
 
     await tester.tap(find.byKey(const Key('player-shuffle-button')));
     await tester.tap(find.byKey(const Key('player-volume-mute-button')));
@@ -170,7 +268,6 @@ void main() {
     );
     await tester.tap(find.byIcon(Icons.skip_next));
     await tester.tap(find.byIcon(Icons.skip_previous));
-    await tester.tap(find.byKey(const Key('player-visualizer-toggle')));
     await tester.pumpAndSettle();
 
     expect(audio.setShuffleCalls, [true]);
@@ -385,8 +482,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('player-visualizer-toggle')));
-    await tester.pump();
+    expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
     expect(audio._spectrum.hasListener, isTrue);
 
     audio._spectrum.add(
@@ -427,6 +523,81 @@ void main() {
     expect(find.byKey(const Key('player-visualizer')), findsNothing);
   });
 
+  testWidgets(
+    'enabled visualizer keeps spectrum capture subscribed while output is unavailable',
+    (tester) async {
+      final audio = _FakeAudio();
+      final vm = PlayerViewModel(audio);
+      await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+      audio._snap.add(
+        PlaybackSnapshot(
+          currentTrack: _track(),
+          status: PlaybackStatus.playing,
+          duration: const Duration(minutes: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(vm.isVisualizerEnabled, isTrue);
+      expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
+      expect(audio._spectrum.hasListener, isTrue);
+
+      audio.spectrumSupport = AudioVisualizerSupport.unavailable;
+      audio._visualizerSupport.add(AudioVisualizerSupport.unavailable);
+      await tester.pump();
+
+      expect(find.byKey(const Key('player-visualizer')), findsNothing);
+      expect(
+        audio._spectrum.hasListener,
+        isTrue,
+        reason:
+            'An enabled visualizer must keep observing the native spectrum '
+            'channel so a later supported event can be received.',
+      );
+
+      audio.spectrumSupport = AudioVisualizerSupport.supported;
+      audio._visualizerSupport.add(AudioVisualizerSupport.supported);
+      await tester.pump();
+
+      expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
+      expect(audio._spectrum.hasListener, isTrue);
+    },
+  );
+
+  for (final size in const <Size>[
+    Size(320, 568),
+    Size(360, 640),
+    Size(390, 844),
+    Size(800, 1280),
+  ]) {
+    testWidgets(
+      'portrait ${size.width.toInt()}x${size.height.toInt()} shows all player content without scrolling',
+      (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final audio = _FakeAudio();
+        addTearDown(audio.dispose);
+        final vm = PlayerViewModel(audio);
+
+        await tester.pumpWidget(_host(PlayerScreen(viewModel: vm)));
+        audio._snap.add(
+          PlaybackSnapshot(
+            currentTrack: _track(),
+            status: PlaybackStatus.paused,
+            duration: const Duration(minutes: 1),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
+        _expectPlayerFitsWithoutScrolling(tester, size);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('small landscape player scrolls without layout overflow', (
     tester,
   ) async {
@@ -449,14 +620,67 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(SingleChildScrollView), findsOneWidget);
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -400),
+    final scrollable = _playerScrollable();
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(position.pixels, closeTo(0, 0.01));
+    expect(position.maxScrollExtent, greaterThan(0));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('player-eq-panel')),
+      200,
+      scrollable: scrollable,
     );
-    await tester.pump();
-    expect(find.byKey(const Key('player-eq-panel')), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(0));
+    _expectFullyWithin(
+      tester,
+      target: find.byKey(const Key('player-eq-panel')),
+      viewport: find.byKey(const Key('player-scroll-view')),
+      reason: '640x320 equalizer after scrolling',
+    );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'large text player keeps the final controls reachable by scroll',
+    (tester) async {
+      const size = Size(320, 568);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final audio = _FakeAudio();
+      addTearDown(audio.dispose);
+      final vm = PlayerViewModel(audio);
+
+      await tester.pumpWidget(_host(PlayerScreen(viewModel: vm), textScale: 2));
+      audio._snap.add(
+        PlaybackSnapshot(
+          currentTrack: _track(),
+          status: PlaybackStatus.paused,
+          duration: const Duration(minutes: 1),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final scrollable = _playerScrollable();
+      final position = tester.state<ScrollableState>(scrollable).position;
+      expect(position.pixels, closeTo(0, 0.01));
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('player-eq-panel')),
+        200,
+        scrollable: scrollable,
+      );
+      await tester.pumpAndSettle();
+      _expectFullyWithin(
+        tester,
+        target: find.byKey(const Key('player-eq-panel')),
+        viewport: find.byKey(const Key('player-scroll-view')),
+        reason: '320x568 textScale 2 equalizer after scrolling',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('transport and audio buttons expose accessible tooltips', (
     tester,
