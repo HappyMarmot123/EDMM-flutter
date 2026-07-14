@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "buildProfile": "flutter build appbundle --release --split-debug-info=build/symbols/android",
+  "baselineDate": "2026-07-13",
+  "baselineFlutter": "3.44.5",
+  "metrics": {
+    "bundleBytes": {
+      "label": "Upload AAB",
+      "baselineBytes": 56234836,
+      "maxGrowthBytes": 1048576,
+      "limitBytes": 62914560
+    },
+    "debugSymbolMetadataBytes": {
+      "label": "Native debug-symbol metadata",
+      "baselineBytes": 27897305,
+      "maxGrowthBytes": 2097152,
+      "limitBytes": 33554432
+    },
+    "allNativeBytes": {
+      "label": "Native libraries, all ABIs",
+      "baselineBytes": 24418722,
+      "maxGrowthBytes": 1048576,
+      "limitBytes": 30408704
+    },
+    "arm64NativeBytes": {
+      "label": "Native libraries, arm64-v8a",
+      "baselineBytes": 8260509,
+      "maxGrowthBytes": 524288,
+      "limitBytes": 10485760
+    },
+    "dexBytes": {
+      "label": "DEX",
+      "baselineBytes": 1504512,
+      "maxGrowthBytes": 262144,
+      "limitBytes": 2097152
+    },
+    "assetsBytes": {
+      "label": "Flutter assets",
+      "baselineBytes": 121534,
+      "maxGrowthBytes": 262144,
+      "limitBytes": 1048576
+    },
+    "resourcesBytes": {
+      "label": "Android resources",
+      "baselineBytes": 164822,
+      "maxGrowthBytes": 131072,
+      "limitBytes": 524288
+    },
+    "estimatedArm64BaseBytes": {
+      "label": "Estimated arm64 base payload",
+      "baselineBytes": 10073459,
+      "maxGrowthBytes": 1048576,
+      "limitBytes": 13631488
+    }
+  }
+}

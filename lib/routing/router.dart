@@ -1,16 +1,136 @@
-import 'package:go_router/go_router.dart';
+import 'dart:async';
 
-import '../ui/home/view_model/home_view_model.dart';
-import '../ui/home/widgets/home_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import '../domain/audio/audio_controller.dart';
+import '../domain/logic/playback_persistence.dart';
+import '../domain/logic/track_resolver.dart';
+import '../domain/models/track.dart';
+import '../domain/repositories/local_library_repository.dart';
+import '../domain/repositories/track_repository.dart';
+import '../domain/telemetry/catalog_search_telemetry.dart';
+import '../domain/telemetry/playback_telemetry.dart';
+import '../ui/catalog_search/view_model/catalog_search_view_model.dart';
+import '../ui/catalog_search/widgets/catalog_search_screen.dart';
+import '../ui/core/widgets/playback_shell.dart';
+import '../ui/track_detail/view_model/track_detail_view_model.dart';
+import '../ui/track_detail/widgets/track_detail_screen.dart';
 import 'routes.dart';
 
-/// 앱 전역 라우터. ViewModel은 라우트 진입 시 생성해 View에 주입한다.
-/// Repository가 생기면 context.read()로 조회해 ViewModel 생성자에 넘긴다.
 final GoRouter appRouter = GoRouter(
   routes: [
-    GoRoute(
-      path: Routes.home,
-      builder: (context, state) => HomeScreen(viewModel: HomeViewModel()),
+    ShellRoute(
+      builder: (context, state, child) => PlaybackShell(
+        key: const ValueKey('playback-shell'),
+        audio: context.read<AudioController>(),
+        localLibrary: context.read<LocalLibraryRepository>(),
+        telemetry: context.read<PlaybackTelemetrySink>(),
+        child: child,
+      ),
+      routes: [
+        GoRoute(
+          path: Routes.trackList,
+          builder: (context, state) {
+            final repo = context.read<TrackRepository>();
+            final audio = context.read<AudioController>();
+            final localLibrary = context.read<LocalLibraryRepository>();
+            final telemetry = context.read<CatalogSearchTelemetrySink>();
+            final view = switch (state.uri.queryParameters['view']) {
+              'recent' => CatalogView.recent,
+              'edm' => CatalogView.edm,
+              'pop' => CatalogView.pop,
+              _ => null,
+            };
+            return CatalogSearchScreen(
+              viewModel: CatalogSearchViewModel(
+                repo,
+                audio,
+                localLibrary,
+                initialView: view,
+                initialTrackId: state.uri.queryParameters['track'],
+                telemetry: telemetry,
+              ),
+              onOpenTrack: (track) =>
+                  context.push(trackDetailLocation(track.id), extra: track),
+              onPlay: (queue, index) => unawaited(
+                _startPlayback(
+                  audio: audio,
+                  localLibrary: localLibrary,
+                  queue: queue,
+                  index: index,
+                ),
+              ),
+            );
+          },
+        ),
+        // Old collection links remain valid for one compatibility window, but
+        // no longer expose removed collection functionality.
+        GoRoute(
+          path: '/library',
+          redirect: (_, _) => Routes.trackList,
+          routes: [
+            GoRoute(path: 'playlist/:id', redirect: (_, _) => Routes.trackList),
+          ],
+        ),
+        GoRoute(
+          path: Routes.trackDetail,
+          redirect: (_, state) {
+            final id = state.pathParameters['id'];
+            return id == null || id.isEmpty ? Routes.trackList : null;
+          },
+          builder: (context, state) {
+            final trackId = state.pathParameters['id'] ?? '';
+            final localLibrary = context.read<LocalLibraryRepository>();
+            final audio = context.read<AudioController>();
+            final seed = switch (state.extra) {
+              Track track when track.id == trackId => track,
+              _ => null,
+            };
+            return TrackDetailScreen(
+              viewModel: TrackDetailViewModel(
+                trackId: trackId,
+                initialTrack: seed,
+                resolver: TrackResolver(
+                  context.read<TrackRepository>(),
+                  localLibrary,
+                ),
+                localLibrary: localLibrary,
+              ),
+              onPlay: (track) => unawaited(
+                _startPlayback(
+                  audio: audio,
+                  localLibrary: localLibrary,
+                  queue: [track],
+                  index: 0,
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     ),
   ],
 );
+
+final Expando<_PlaybackRequestState> _playbackRequestStates =
+    Expando<_PlaybackRequestState>();
+
+class _PlaybackRequestState {
+  int generation = 0;
+}
+
+Future<void> _startPlayback({
+  required AudioController audio,
+  required LocalLibraryRepository localLibrary,
+  required List<Track> queue,
+  required int index,
+}) async {
+  final state = _playbackRequestStates[audio] ??= _PlaybackRequestState();
+  final generation = ++state.generation;
+  final loaded = await audio.loadQueue(queue, initialIndex: index);
+  if (!loaded || generation != state.generation) return;
+  unawaited(persistPlaybackSelection(localLibrary, queue, index));
+  await audio.play();
+}

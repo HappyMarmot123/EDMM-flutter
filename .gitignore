@@ -46,3 +46,7 @@ app.*.map.json
 
 # Superpowers SDD scratch (ledger, briefs, review packages)
 .superpowers/
+
+# Environment files (never commit secrets)
+.env
+.env.*

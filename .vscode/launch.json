@@ -1,0 +1,31 @@
+// Powershell : setx SENTRY_DSN "https://public@sentry.io/project"
+
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "EDMM Flutter",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=APP_ENV=development",
+        "--dart-define=BFF_BASE_URL=${env:BFF_BASE_URL}",
+        "--dart-define=SENTRY_ENVIRONMENT=development"
+      ]
+    },
+    {
+      "name": "EDMM Flutter (Sentry)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=APP_ENV=development",
+        "--dart-define=BFF_BASE_URL=${env:BFF_BASE_URL}",
+        "--dart-define=SENTRY_DSN=${env:SENTRY_DSN}",
+        "--dart-define=SENTRY_ENVIRONMENT=development",
+        "--dart-define=SENTRY_TRACES_SAMPLE_RATE=0.0"
+      ]
+    }
+  ]
+}

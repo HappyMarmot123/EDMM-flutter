@@ -2,5 +2,84 @@
   "@@locale": "en",
   "appTitle": "EDMM",
   "homeSetupDone": "Flutter project setup complete",
-  "increment": "Increment"
+  "increment": "Increment",
+  "trackListTitle": "Tracks",
+  "catalogLoading": "Loading tracks",
+  "tracksLoadError": "Couldn't load tracks",
+  "tracksEmpty": "No tracks",
+  "retry": "Retry",
+  "nowPlaying": "Now Playing",
+  "trackStatePlaying": "Currently playing",
+  "trackStatePaused": "Current track, paused",
+  "trackStateUnavailable": "Unavailable",
+  "unknownArtist": "Unknown artist",
+  "searchHint": "Search tracks",
+  "tabPop": "Pop",
+  "tabEdm": "EDM",
+  "tabRecent": "Recent",
+  "searchNoResults": "No matching tracks",
+  "clearSearch": "Clear search",
+  "catalogStaleWarning": "Showing saved results — couldn't refresh",
+  "playerNoTrackLoaded": "No track loaded",
+  "playerDismiss": "Dismiss",
+  "playerShuffle": "Shuffle",
+  "playerPrevious": "Previous track",
+  "playerPlay": "Play",
+  "playerPause": "Pause",
+  "playerNext": "Next track",
+  "playerVisualizerEnable": "Show audio spectrum",
+  "playerVisualizerDisable": "Hide audio spectrum",
+  "playerVisualizerUnavailable": "Audio spectrum is unavailable for this output",
+  "playerProgress": "Playback progress",
+  "playerProgressValue": "{position} of {duration}",
+  "@playerProgressValue": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolume": "Volume",
+  "playerVisualizer": "Audio spectrum",
+  "playerMute": "Mute",
+  "playerUnmute": "Unmute",
+  "playerOpen": "Open full player",
+  "playerEqualizer": "Equalizer",
+  "playerEqualizerPresetFlat": "Flat",
+  "playerEqualizerPresetFlatHelp": "Keeps the original balance with no EQ coloring",
+  "playerEqualizerPresetBass": "Bass Boost",
+  "playerEqualizerPresetBassHelp": "Adds low-end punch with a clean midrange scoop",
+  "playerEqualizerUnsupportedPlatform": "Equalizer is available on supported Android, iOS, and macOS devices",
+  "playerEqualizerUnavailable": "Equalizer is unavailable on this device",
+  "playbackStatusIdle": "Idle",
+  "playbackStatusLoading": "Loading",
+  "playbackStatusReady": "Ready",
+  "playbackStatusPlaying": "Playing",
+  "playbackStatusPaused": "Paused",
+  "playbackStatusCompleted": "Completed",
+  "playbackStatusError": "Error",
+  "playbackErrorNetwork": "Network issue while loading audio",
+  "playbackErrorServer": "Server error ({statusCode})",
+  "@playbackErrorServer": {
+    "placeholders": {
+      "statusCode": {
+        "type": "int"
+      }
+    }
+  },
+  "playbackErrorInvalidData": "Playback data is invalid",
+  "localStorageError": "Couldn't save track data locally",
+  "trackDetailsTitle": "Track details",
+  "trackNotFound": "Track not found",
+  "trackDetailLoadError": "Couldn't load track details",
+  "trackPlay": "Play",
+  "albumLabel": "Album",
+  "sourceLabel": "Source",
+  "durationLabel": "Duration",
+  "metadataTitle": "Metadata",
+  "unknownAlbum": "Unknown album",
+  "openTrackDetails": "Open track details"
 }
