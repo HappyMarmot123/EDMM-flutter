@@ -5,6 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final source = File('lib/data/audio/just_audio_controller.dart');
   final playerScreen = File('lib/ui/player/widgets/player_screen.dart');
+  final playerEqualizerPanel = File(
+    'lib/ui/player/widgets/player_equalizer_panel.dart',
+  );
   final englishArb = File('lib/l10n/app_en.arb');
 
   test('app-level just audio controller wires Darwin equalizer pipeline', () {
@@ -62,12 +65,15 @@ void main() {
 
   test('player UI exposes presets instead of manual band sliders', () {
     final screenText = playerScreen.readAsStringSync();
+    final panelText = playerEqualizerPanel.readAsStringSync();
+    final equalizerUiText = '$screenText\n$panelText';
     final arbText = englishArb.readAsStringSync();
 
-    expect(screenText, contains('player-eq-preset-flat'));
-    expect(screenText, contains('player-eq-preset-bass'));
-    expect(screenText, isNot(contains('player-eq-band-')));
-    expect(screenText, isNot(contains('setEqualizerBandGain')));
+    expect(screenText, contains('PlayerEqualizerPanel('));
+    expect(panelText, contains('player-eq-preset-flat'));
+    expect(panelText, contains('player-eq-preset-bass'));
+    expect(equalizerUiText, isNot(contains('player-eq-band-')));
+    expect(equalizerUiText, isNot(contains('setEqualizerBandGain')));
     expect(screenText, contains('playerEqualizerUnsupportedPlatform'));
     expect(screenText, isNot(contains('playerEqualizerAndroidOnly')));
     expect(arbText, isNot(contains('Android devices only')));

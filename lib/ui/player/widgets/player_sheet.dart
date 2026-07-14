@@ -23,6 +23,7 @@ Future<void> showPlayerSheet(
     showDragHandle: false,
     enableDrag: false,
     backgroundColor: Colors.transparent,
+    constraints: const BoxConstraints(maxWidth: double.infinity),
     builder: (sheetContext) {
       final height = MediaQuery.sizeOf(sheetContext).height;
       return SizedBox(

@@ -5,18 +5,23 @@ import 'package:edmm/domain/audio/audio_effects_controller.dart';
 import 'package:edmm/domain/audio/audio_visualizer_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
-import 'package:edmm/l10n/app_localizations.dart';
 import 'package:edmm/ui/player/view_model/player_view_model.dart';
 import 'package:edmm/ui/player/widgets/player_screen.dart';
 import 'package:edmm/ui/player/widgets/player_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../design_system/edmm_test_host.dart';
+
 class _SheetAudio
     implements
         AudioController,
         AudioEffectsController,
         AudioVisualizerController {
+  _SheetAudio({
+    AudioVisualizerSupport visualizerSupport = AudioVisualizerSupport.supported,
+  }) : _visualizerSupportValue = visualizerSupport;
+
   final _snapshots = StreamController<PlaybackSnapshot>.broadcast();
   final _positions = StreamController<Duration>.broadcast();
   final _spectrum = StreamController<AudioSpectrumFrame>.broadcast();
@@ -26,6 +31,7 @@ class _SheetAudio
   double _volume = 1;
   bool _shuffleEnabled = false;
   AudioEqualizerPreset _preset = AudioEqualizerPreset.flat;
+  AudioVisualizerSupport _visualizerSupportValue;
 
   @override
   Stream<PlaybackSnapshot> get snapshot => _snapshots.stream;
@@ -37,12 +43,17 @@ class _SheetAudio
   Stream<AudioSpectrumFrame> get spectrum => _spectrum.stream;
 
   @override
-  AudioVisualizerSupport get visualizerSupport =>
-      AudioVisualizerSupport.supported;
+  AudioVisualizerSupport get visualizerSupport => _visualizerSupportValue;
 
   @override
   Stream<AudioVisualizerSupport> get visualizerSupportStream =>
       _visualizerSupport.stream;
+
+  void emitVisualizerSupport(AudioVisualizerSupport support) {
+    if (!_spectrum.hasListener) return;
+    _visualizerSupportValue = support;
+    _visualizerSupport.add(support);
+  }
 
   @override
   AudioEqualizerSupport get equalizerSupport => AudioEqualizerSupport.supported;
@@ -149,6 +160,11 @@ void main() {
       size: Size(390, 844),
       padding: FakeViewPadding(top: 47, bottom: 34),
     ),
+    (
+      label: '840x900 expanded player',
+      size: Size(840, 900),
+      padding: FakeViewPadding.zero,
+    ),
   ]) {
     testWidgets(
       'showPlayerSheet ${testCase.label} uses the full height and needs no initial scroll',
@@ -165,10 +181,8 @@ void main() {
         final viewModel = PlayerViewModel(audio);
 
         await tester.pumpWidget(
-          MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Builder(
+          EdmmTestHost(
+            child: Builder(
               builder: (context) => Scaffold(
                 body: Center(
                   child: FilledButton(
@@ -221,7 +235,16 @@ void main() {
           reason: 'sheet maxScrollExtent was ${position.maxScrollExtent}',
         );
         expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
-        expect(audio._spectrum.hasListener, isTrue);
+        expect(audio._spectrum.hasListener, isFalse);
+        expect(audio._visualizerSupport.hasListener, isTrue);
+
+        final expectsTwoPane = size.width >= 840;
+        expect(
+          find.byKey(
+            Key(expectsTwoPane ? 'player-two-pane' : 'player-one-pane'),
+          ),
+          findsOneWidget,
+        );
 
         final viewportRect = tester.getRect(
           find.byKey(const Key('player-scroll-view')),
@@ -244,7 +267,79 @@ void main() {
         await tester.tap(find.byKey(const Key('player-close-button')));
         await tester.pumpAndSettle();
         expect(find.byType(PlayerScreen), findsNothing);
+        expect(audio._spectrum.hasListener, isFalse);
+        expect(audio._visualizerSupport.hasListener, isFalse);
       },
     );
   }
+
+  testWidgets(
+    'shared sheet stops spectrum frames while retaining support recovery',
+    (tester) async {
+      final audio = _SheetAudio(
+        visualizerSupport: AudioVisualizerSupport.unavailable,
+      );
+      addTearDown(audio.dispose);
+      final viewModel = PlayerViewModel(audio);
+      addTearDown(viewModel.dispose);
+
+      await tester.pumpWidget(
+        EdmmTestHost(
+          child: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  key: const Key('open-shared-player-sheet'),
+                  onPressed: () => unawaited(
+                    showPlayerSheet(
+                      context,
+                      viewModel: viewModel,
+                      disposeViewModel: false,
+                    ),
+                  ),
+                  child: const Text('Open shared'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('open-shared-player-sheet')));
+      await tester.pumpAndSettle();
+      audio.emit(
+        const PlaybackSnapshot(
+          currentTrack: _track,
+          status: PlaybackStatus.playing,
+          duration: Duration(minutes: 1),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('player-visualizer')), findsNothing);
+      expect(
+        find.byKey(const Key('player-visualizer-recovery-probe')),
+        findsOneWidget,
+      );
+      expect(audio._spectrum.hasListener, isTrue);
+      expect(audio._visualizerSupport.hasListener, isTrue);
+
+      audio.emitVisualizerSupport(AudioVisualizerSupport.supported);
+      await tester.pump();
+      expect(find.byKey(const Key('player-visualizer')), findsOneWidget);
+      expect(
+        find.byKey(const Key('player-visualizer-recovery-probe')),
+        findsNothing,
+      );
+      expect(audio._spectrum.hasListener, isTrue);
+
+      await tester.tap(find.byKey(const Key('player-close-button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PlayerScreen), findsNothing);
+      expect(audio._spectrum.hasListener, isFalse);
+      expect(audio._visualizerSupport.hasListener, isTrue);
+    },
+  );
 }
