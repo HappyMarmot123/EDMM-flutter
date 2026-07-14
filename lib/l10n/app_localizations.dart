@@ -122,6 +122,12 @@ abstract class AppLocalizations {
   /// **'Tracks'**
   String get trackListTitle;
 
+  /// No description provided for @catalogLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading tracks'**
+  String get catalogLoading;
+
   /// No description provided for @tracksLoadError.
   ///
   /// In en, this message translates to:
@@ -145,6 +151,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Now Playing'**
   String get nowPlaying;
+
+  /// No description provided for @trackStatePlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently playing'**
+  String get trackStatePlaying;
+
+  /// No description provided for @trackStatePaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Current track, paused'**
+  String get trackStatePaused;
+
+  /// No description provided for @trackStateUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get trackStateUnavailable;
 
   /// No description provided for @unknownArtist.
   ///
@@ -253,6 +277,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Audio spectrum is unavailable for this output'**
   String get playerVisualizerUnavailable;
+
+  /// No description provided for @playerProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback progress'**
+  String get playerProgress;
+
+  /// No description provided for @playerProgressValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{position} of {duration}'**
+  String playerProgressValue(String position, String duration);
+
+  /// No description provided for @playerVolume.
+  ///
+  /// In en, this message translates to:
+  /// **'Volume'**
+  String get playerVolume;
+
+  /// No description provided for @playerVisualizer.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio spectrum'**
+  String get playerVisualizer;
 
   /// No description provided for @playerMute.
   ///

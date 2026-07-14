@@ -4,10 +4,14 @@
   "homeSetupDone": "Flutter project setup complete",
   "increment": "Increment",
   "trackListTitle": "Tracks",
+  "catalogLoading": "Loading tracks",
   "tracksLoadError": "Couldn't load tracks",
   "tracksEmpty": "No tracks",
   "retry": "Retry",
   "nowPlaying": "Now Playing",
+  "trackStatePlaying": "Currently playing",
+  "trackStatePaused": "Current track, paused",
+  "trackStateUnavailable": "Unavailable",
   "unknownArtist": "Unknown artist",
   "searchHint": "Search tracks",
   "tabPop": "Pop",
@@ -26,6 +30,20 @@
   "playerVisualizerEnable": "Show audio spectrum",
   "playerVisualizerDisable": "Hide audio spectrum",
   "playerVisualizerUnavailable": "Audio spectrum is unavailable for this output",
+  "playerProgress": "Playback progress",
+  "playerProgressValue": "{position} of {duration}",
+  "@playerProgressValue": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "playerVolume": "Volume",
+  "playerVisualizer": "Audio spectrum",
   "playerMute": "Mute",
   "playerUnmute": "Unmute",
   "playerOpen": "Open full player",

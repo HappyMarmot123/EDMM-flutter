@@ -21,6 +21,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get trackListTitle => '트랙';
 
   @override
+  String get catalogLoading => '트랙을 불러오는 중';
+
+  @override
   String get tracksLoadError => '트랙을 불러오지 못했습니다';
 
   @override
@@ -31,6 +34,15 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get nowPlaying => '재생 중';
+
+  @override
+  String get trackStatePlaying => '현재 재생 중';
+
+  @override
+  String get trackStatePaused => '현재 트랙, 일시정지됨';
+
+  @override
+  String get trackStateUnavailable => '재생할 수 없음';
 
   @override
   String get unknownArtist => '알 수 없는 아티스트';
@@ -85,6 +97,20 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get playerVisualizerUnavailable => '현재 출력에서는 오디오 스펙트럼을 사용할 수 없습니다';
+
+  @override
+  String get playerProgress => '재생 위치';
+
+  @override
+  String playerProgressValue(String position, String duration) {
+    return '$duration 중 $position';
+  }
+
+  @override
+  String get playerVolume => '음량';
+
+  @override
+  String get playerVisualizer => '오디오 스펙트럼';
 
   @override
   String get playerMute => '음소거';

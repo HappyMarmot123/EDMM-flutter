@@ -21,6 +21,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get trackListTitle => 'Tracks';
 
   @override
+  String get catalogLoading => 'Loading tracks';
+
+  @override
   String get tracksLoadError => 'Couldn\'t load tracks';
 
   @override
@@ -31,6 +34,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nowPlaying => 'Now Playing';
+
+  @override
+  String get trackStatePlaying => 'Currently playing';
+
+  @override
+  String get trackStatePaused => 'Current track, paused';
+
+  @override
+  String get trackStateUnavailable => 'Unavailable';
 
   @override
   String get unknownArtist => 'Unknown artist';
@@ -86,6 +98,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playerVisualizerUnavailable =>
       'Audio spectrum is unavailable for this output';
+
+  @override
+  String get playerProgress => 'Playback progress';
+
+  @override
+  String playerProgressValue(String position, String duration) {
+    return '$position of $duration';
+  }
+
+  @override
+  String get playerVolume => 'Volume';
+
+  @override
+  String get playerVisualizer => 'Audio spectrum';
 
   @override
   String get playerMute => 'Mute';
