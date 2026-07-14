@@ -19,14 +19,18 @@
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-14121B" alt="Android and iOS" />
 </p>
 
+<p align="center">
+  <a href="https://drive.google.com/file/d/11P3CSfOMK0znpoCdmEu0vi4CDGtfr9FT/view?usp=sharing">
+    [EDMM Android APK]
+  </a>
+</p>
 
 ## 음악을 발견하고, 바로 재생하세요
 
 EDMM은 카탈로그 탐색과 플레이어를 분리된 기능으로 다루지 않습니다. 원하는 트랙을 찾고, 상세 정보를 확인하고, 재생을 이어 가는 전 과정을 하나의 모바일 경험으로 구성했습니다.
 
-`just_audio`, `audio_service` 기반 재생으로 백그라운드 오디오 플레이와 비주얼라이저, 이퀄라이저 프리셋을 제공합니다.
+just_audio, audio_service 기반 재생으로 백그라운드 오디오 플레이와 비주얼라이저, 이퀄라이저 프리셋을 제공합니다.
 
-- [EDMM Android APK](https://drive.google.com/file/d/11P3CSfOMK0znpoCdmEu0vi4CDGtfr9FT/view?usp=sharing)
 
 ## 개발자 가이드
 
