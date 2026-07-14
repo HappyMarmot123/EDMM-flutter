@@ -13,6 +13,7 @@ import 'package:edmm/domain/telemetry/playback_telemetry.dart';
 import 'package:edmm/l10n/app_localizations.dart';
 import 'package:edmm/routing/router.dart';
 import 'package:edmm/routing/routes.dart';
+import 'package:edmm/ui/core/themes/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -101,6 +102,9 @@ Widget _host(_Audio audio, LocalLibraryRepository localLibrary) =>
         ),
       ],
       child: MaterialApp.router(
+        theme: AppTheme.dark,
+        darkTheme: AppTheme.dark,
+        themeMode: ThemeMode.dark,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: appRouter,

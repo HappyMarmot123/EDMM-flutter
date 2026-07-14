@@ -10,6 +10,7 @@ import 'package:edmm/domain/audio/audio_controller.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
 import 'package:edmm/ui/catalog_search/view_model/catalog_search_view_model.dart';
 import 'package:edmm/ui/catalog_search/widgets/catalog_search_screen.dart';
+import 'package:edmm/ui/core/themes/theme.dart';
 
 class _Repo implements TrackRepository {
   @override
@@ -64,6 +65,8 @@ void main() {
     );
     await tester.pumpWidget(
       MaterialApp(
+        darkTheme: AppTheme.dark,
+        themeMode: ThemeMode.dark,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: CatalogSearchScreen(viewModel: vm, onPlay: (_, _) {}),

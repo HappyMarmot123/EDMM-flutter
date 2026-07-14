@@ -15,6 +15,7 @@ import 'package:edmm/domain/telemetry/catalog_search_telemetry.dart';
 import 'package:edmm/domain/telemetry/playback_telemetry.dart';
 import 'package:edmm/l10n/app_localizations.dart';
 import 'package:edmm/routing/router.dart';
+import 'package:edmm/ui/core/themes/theme.dart';
 
 Track _t(String id) => Track(
   id: id,
@@ -99,6 +100,9 @@ void main() {
             ),
           ],
           child: MaterialApp.router(
+            theme: AppTheme.dark,
+            darkTheme: AppTheme.dark,
+            themeMode: ThemeMode.dark,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: appRouter,
