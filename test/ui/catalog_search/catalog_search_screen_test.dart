@@ -180,6 +180,58 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('catalog shows a count only on the selected compact filter', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final vm = _vm(
+      (category, query) => Ok(
+        category == CloudinaryCategory.pop
+            ? <Track>[_t('1'), _t('2')]
+            : <Track>[_t('3')],
+      ),
+    );
+
+    await _pumpCatalog(tester, vm, viewport: EdmmTestViewports.compactPhone);
+    await tester.pumpAndSettle();
+
+    const popKey = Key('catalog-tab-pop');
+    const edmKey = Key('catalog-tab-edm');
+    const recentKey = Key('catalog-tab-recent');
+
+    expect(find.text('Pop (2)'), findsOneWidget);
+    expect(find.text('EDM'), findsOneWidget);
+    expect(find.text('EDM (2)'), findsNothing);
+    expect(find.text('Recent'), findsOneWidget);
+    expect(find.text('Recent (0)'), findsNothing);
+    expect(tester.getSemantics(find.byKey(popKey)).label, 'Pop (2)');
+    expect(tester.getSemantics(find.byKey(edmKey)).label, 'EDM');
+    expect(tester.getSemantics(find.byKey(recentKey)).label, 'Recent');
+
+    await tester.tap(find.byKey(edmKey));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pop'), findsOneWidget);
+    expect(find.text('Pop (2)'), findsNothing);
+    expect(find.text('EDM (1)'), findsOneWidget);
+    expect(find.text('Recent'), findsOneWidget);
+    expect(tester.getSemantics(find.byKey(popKey)).label, 'Pop');
+    expect(tester.getSemantics(find.byKey(edmKey)).label, 'EDM (1)');
+    expect(tester.getSemantics(find.byKey(recentKey)).label, 'Recent');
+
+    await tester.tap(find.byKey(recentKey));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pop'), findsOneWidget);
+    expect(find.text('EDM'), findsOneWidget);
+    expect(find.text('EDM (1)'), findsNothing);
+    expect(find.text('Recent (0)'), findsOneWidget);
+    expect(tester.getSemantics(find.byKey(popKey)).label, 'Pop');
+    expect(tester.getSemantics(find.byKey(edmKey)).label, 'EDM');
+    expect(tester.getSemantics(find.byKey(recentKey)).label, 'Recent (0)');
+    semantics.dispose();
+  });
+
   testWidgets('search and filter actions meet the 48dp target', (tester) async {
     final vm = _vm((c, q) => Ok([_t('1')]));
     await _pumpCatalog(

@@ -109,6 +109,7 @@ class CatalogHeader extends StatelessWidget {
                 count: popCount,
                 selected: popSelected,
                 onPressed: onPopSelected,
+                showCount: popSelected,
               ),
               EdmmFilterPill(
                 key: const Key('catalog-tab-edm'),
@@ -116,6 +117,7 @@ class CatalogHeader extends StatelessWidget {
                 count: edmCount,
                 selected: edmSelected,
                 onPressed: onEdmSelected,
+                showCount: edmSelected,
               ),
               EdmmFilterPill(
                 key: const Key('catalog-tab-recent'),
@@ -123,6 +125,7 @@ class CatalogHeader extends StatelessWidget {
                 count: recentCount,
                 selected: recentSelected,
                 onPressed: onRecentSelected,
+                showCount: recentSelected,
               ),
             ],
           ),
