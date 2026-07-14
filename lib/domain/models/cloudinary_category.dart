@@ -5,4 +5,3 @@ enum CloudinaryCategory {
   const CloudinaryCategory(this.wire);
   final String wire;
 }
-

@@ -55,7 +55,9 @@ class ArtworkMerger {
       for (final k in buildMatchKeys(a)) {
         final img = imageByKey[k];
         if (img != null) {
-          final art = img.artworkUrl.isNotEmpty ? img.artworkUrl : (img.streamUrl ?? '');
+          final art = img.artworkUrl.isNotEmpty
+              ? img.artworkUrl
+              : (img.streamUrl ?? '');
           return a.copyWith(artworkUrl: art);
         }
       }

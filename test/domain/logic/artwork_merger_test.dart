@@ -4,16 +4,27 @@ import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/logic/artwork_merger.dart';
 
 Track audio(String title, String artist) => Track(
-      id: 'a:$title', source: 'cloudinary', title: title,
-      artistId: 'cloudinary:$artist', artistName: artist,
-      durationMs: 1000, streamUrl: 'https://x/$title.m4a',
-      metadata: const {'resourceType': 'video'});
+  id: 'a:$title',
+  source: 'cloudinary',
+  title: title,
+  artistId: 'cloudinary:$artist',
+  artistName: artist,
+  durationMs: 1000,
+  streamUrl: 'https://x/$title.m4a',
+  metadata: const {'resourceType': 'video'},
+);
 
 Track image(String title, String artist, String url) => Track(
-      id: 'i:$title', source: 'cloudinary', title: title,
-      artistId: 'cloudinary:$artist', artistName: artist,
-      durationMs: 0, artworkUrl: url, streamUrl: url,
-      metadata: const {'resourceType': 'image'});
+  id: 'i:$title',
+  source: 'cloudinary',
+  title: title,
+  artistId: 'cloudinary:$artist',
+  artistName: artist,
+  durationMs: 0,
+  artworkUrl: url,
+  streamUrl: url,
+  metadata: const {'resourceType': 'image'},
+);
 
 void main() {
   test('normalizeForMatching lowercases, strips ext and punctuation', () {
@@ -29,7 +40,10 @@ void main() {
   });
 
   test('merge leaves artwork empty when no match', () {
-    final merged = ArtworkMerger.merge([audio('Solo', 'X')], [image('Other', 'Y', 'u')]);
+    final merged = ArtworkMerger.merge(
+      [audio('Solo', 'X')],
+      [image('Other', 'Y', 'u')],
+    );
     expect(merged.single.artworkUrl, '');
   });
 

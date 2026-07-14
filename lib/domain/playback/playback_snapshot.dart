@@ -36,14 +36,14 @@ class PlaybackSnapshot {
     bool clearQueueIndex = false,
     bool clearError = false,
   }) => PlaybackSnapshot(
-        currentTrack: clearCurrentTrack ? null : currentTrack ?? this.currentTrack,
-        status: status ?? this.status,
-        duration: duration ?? this.duration,
-        queueIndex: clearQueueIndex ? null : queueIndex ?? this.queueIndex,
-        hasNext: hasNext ?? this.hasNext,
-        hasPrevious: hasPrevious ?? this.hasPrevious,
-        error: clearError ? null : error ?? this.error,
-      );
+    currentTrack: clearCurrentTrack ? null : currentTrack ?? this.currentTrack,
+    status: status ?? this.status,
+    duration: duration ?? this.duration,
+    queueIndex: clearQueueIndex ? null : queueIndex ?? this.queueIndex,
+    hasNext: hasNext ?? this.hasNext,
+    hasPrevious: hasPrevious ?? this.hasPrevious,
+    error: clearError ? null : error ?? this.error,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -59,12 +59,12 @@ class PlaybackSnapshot {
 
   @override
   int get hashCode => Object.hash(
-        currentTrack,
-        status,
-        duration,
-        queueIndex,
-        hasNext,
-        hasPrevious,
-        error,
-      );
+    currentTrack,
+    status,
+    duration,
+    queueIndex,
+    hasNext,
+    hasPrevious,
+    error,
+  );
 }
