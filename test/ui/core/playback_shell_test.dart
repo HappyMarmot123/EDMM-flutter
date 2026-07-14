@@ -5,10 +5,12 @@ import 'package:edmm/domain/audio/audio_controller.dart';
 import 'package:edmm/domain/models/track.dart';
 import 'package:edmm/domain/playback/playback_snapshot.dart';
 import 'package:edmm/domain/telemetry/playback_telemetry.dart';
-import 'package:edmm/l10n/app_localizations.dart';
 import 'package:edmm/ui/core/widgets/playback_shell.dart';
+import 'package:edmm/ui/player/widgets/player_mini_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../design_system/edmm_test_host.dart';
 
 class _Audio implements AudioController {
   final _snapshots = StreamController<PlaybackSnapshot>.broadcast();
@@ -102,16 +104,61 @@ class _PlaybackHarnessState extends State<_PlaybackHarness> {
 }
 
 void main() {
+  testWidgets('generic body ends above the safe raised mini player', (
+    tester,
+  ) async {
+    final audio = _Audio();
+    addTearDown(audio.dispose);
+    await pumpEdmmTestHost(
+      tester,
+      viewport: const Size(360, 640),
+      textScale: 2,
+      safeArea: const EdgeInsets.only(top: 24, bottom: 34),
+      child: PlaybackShell(
+        audio: audio,
+        localLibrary: InMemoryLocalLibraryRepository(),
+        telemetry: const NoopPlaybackTelemetrySink(),
+        child: const Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            key: Key('generic-body-last-marker'),
+            width: 40,
+            height: 24,
+          ),
+        ),
+      ),
+    );
+    audio.emit(
+      PlaybackSnapshot(
+        currentTrack: _track(),
+        status: PlaybackStatus.paused,
+        duration: const Duration(minutes: 1),
+      ),
+    );
+    await tester.pump();
+
+    final scaffold = tester.widget<Scaffold>(
+      find.byKey(const Key('playback-shell-scaffold')),
+    );
+    expect(scaffold.extendBody, isFalse);
+    expect(scaffold.bottomNavigationBar, isA<PlayerMiniBar>());
+    final markerRect = tester.getRect(
+      find.byKey(const Key('generic-body-last-marker')),
+    );
+    final miniRect = tester.getRect(find.byKey(const Key('player-mini-bar')));
+    expect(markerRect.bottom, lessThanOrEqualTo(miniRect.top));
+    expect(miniRect.bottom, lessThanOrEqualTo(640 - 34));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('mini and full player share one settings view model', (
     tester,
   ) async {
     final audio = _Audio();
     addTearDown(audio.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: PlaybackShell(
+      EdmmTestHost(
+        child: PlaybackShell(
           audio: audio,
           localLibrary: InMemoryLocalLibraryRepository(),
           telemetry: const NoopPlaybackTelemetrySink(),
@@ -159,10 +206,8 @@ void main() {
     addTearDown(secondAudio.dispose);
     final harnessKey = GlobalKey<_PlaybackHarnessState>();
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: _PlaybackHarness(key: harnessKey, initialAudio: firstAudio),
+      EdmmTestHost(
+        child: _PlaybackHarness(key: harnessKey, initialAudio: firstAudio),
       ),
     );
     firstAudio.emit(

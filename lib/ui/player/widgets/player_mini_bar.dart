@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../core/layout/edmm_breakpoints.dart';
+import '../../core/themes/edmm_theme_extensions.dart';
+import '../../core/themes/edmm_theme_tokens.dart';
+import '../../core/widgets/edmm_artwork.dart';
+import '../../core/widgets/edmm_icon_action.dart';
 import '../view_model/player_view_model.dart';
 
 class PlayerMiniBar extends StatelessWidget {
@@ -24,117 +29,195 @@ class PlayerMiniBar extends StatelessWidget {
       builder: (context, _) {
         final track = viewModel.snapshot.currentTrack;
         if (track == null) return const SizedBox.shrink();
+        final artist = track.artistName.trim().isEmpty
+            ? l10n.unknownArtist
+            : track.artistName;
+        final colors = Theme.of(context).edmm;
 
         return SafeArea(
           top: false,
+          minimum: const EdgeInsets.fromLTRB(
+            EdmmSpacing.sm,
+            EdmmSpacing.xs,
+            EdmmSpacing.sm,
+            EdmmSpacing.xs,
+          ),
           child: Material(
             key: const Key('player-mini-bar'),
-            elevation: 8,
-            color: Theme.of(context).colorScheme.surface,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 360;
-                return ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 72),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Semantics(
-                          button: true,
-                          label: l10n.playerOpen,
-                          child: InkWell(
-                            key: const Key('player-mini-open'),
-                            onTap: onOpenPlayer,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                children: [
-                                  if (track.artworkUrl.isNotEmpty)
-                                    Image.network(
-                                      track.artworkUrl,
-                                      width: 56,
-                                      height: 56,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              const Icon(
-                                                Icons.music_note,
-                                                size: 40,
-                                              ),
-                                    )
-                                  else
-                                    const Icon(Icons.music_note, size: 40),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          track.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleSmall,
-                                        ),
-                                        Text(
-                                          track.artistName.isEmpty
-                                              ? l10n.unknownArtist
-                                              : track.artistName,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
-                                        ),
-                                      ],
+            elevation: 0,
+            color: colors.surfaceRose,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(EdmmRadii.medium),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _MiniPlaybackProgress(
+                  key: ValueKey<String>('player-mini-progress-${track.id}'),
+                  position: viewModel.position,
+                  duration: viewModel.snapshot.duration,
+                ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final showVolumeValue =
+                        constraints.maxWidth >= EdmmBreakpoints.mediumMinWidth;
+                    return ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: EdmmSizes.minTouchTarget + EdmmSpacing.xl,
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Tooltip(
+                              message: l10n.playerOpen,
+                              excludeFromSemantics: true,
+                              child: Semantics(
+                                key: const Key('player-mini-open-semantics'),
+                                container: true,
+                                button: true,
+                                enabled: onOpenPlayer != null,
+                                label: l10n.playerOpen,
+                                value: '${track.title}, $artist',
+                                onTap: onOpenPlayer,
+                                child: ExcludeSemantics(
+                                  child: InkWell(
+                                    key: const Key('player-mini-open'),
+                                    onTap: onOpenPlayer,
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        EdmmSpacing.sm,
+                                        EdmmSpacing.xs,
+                                        EdmmSpacing.xxs,
+                                        EdmmSpacing.xs,
+                                      ),
+                                      child: Row(
+                                        children: <Widget>[
+                                          SizedBox.square(
+                                            dimension: EdmmSizes.minTouchTarget,
+                                            child: EdmmArtwork(
+                                              imageUrl: track.artworkUrl,
+                                              radius: EdmmArtworkRadius.small,
+                                              semantics: EdmmArtworkSemantics
+                                                  .decorative,
+                                            ),
+                                          ),
+                                          const SizedBox(width: EdmmSpacing.sm),
+                                          Expanded(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: <Widget>[
+                                                Text(
+                                                  track.title,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: EdmmTypography
+                                                      .trackTitle
+                                                      .copyWith(
+                                                        color:
+                                                            colors.textPrimary,
+                                                      ),
+                                                ),
+                                                Text(
+                                                  artist,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: EdmmTypography.body
+                                                      .copyWith(
+                                                        color: colors.textMuted,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      IconButton(
-                        key: const Key('player-mini-volume-mute'),
-                        tooltip: viewModel.isMuted
-                            ? l10n.playerUnmute
-                            : l10n.playerMute,
-                        icon: Icon(_volumeIcon(viewModel)),
-                        onPressed: viewModel.toggleMute,
-                      ),
-                      if (!compact)
-                        SizedBox(
-                          width: 44,
-                          child: Text(
-                            '${(viewModel.volume * 100).round()}%',
-                            textAlign: TextAlign.center,
+                          EdmmIconAction(
+                            label: viewModel.isMuted
+                                ? l10n.playerUnmute
+                                : l10n.playerMute,
+                            icon: _volumeIcon(viewModel),
+                            actionKey: const Key('player-mini-volume-mute'),
+                            onPressed: viewModel.toggleMute,
                           ),
-                        ),
-                      IconButton(
-                        key: const Key('player-mini-play-pause'),
-                        tooltip: viewModel.snapshot.isPlaying
-                            ? l10n.playerPause
-                            : l10n.playerPlay,
-                        icon: Icon(
-                          viewModel.snapshot.isPlaying
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                        ),
-                        onPressed: viewModel.playPause,
-                        iconSize: 36,
+                          if (showVolumeValue)
+                            SizedBox(
+                              width: EdmmSizes.minTouchTarget,
+                              child: Text(
+                                '${(viewModel.volume * 100).round()}%',
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.clip,
+                                style: EdmmTypography.timeData.copyWith(
+                                  color: colors.textMuted,
+                                ),
+                              ),
+                            ),
+                          EdmmIconAction(
+                            label: viewModel.snapshot.isPlaying
+                                ? l10n.playerPause
+                                : l10n.playerPlay,
+                            icon: viewModel.snapshot.isPlaying
+                                ? Icons.pause
+                                : Icons.play_arrow,
+                            actionKey: const Key('player-mini-play-pause'),
+                            onPressed: viewModel.playPause,
+                          ),
+                          const SizedBox(width: EdmmSpacing.xxs),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MiniPlaybackProgress extends StatelessWidget {
+  const _MiniPlaybackProgress({
+    super.key,
+    required this.position,
+    required this.duration,
+  });
+
+  final Stream<Duration> position;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).edmm;
+    return StreamBuilder<Duration>(
+      stream: position,
+      initialData: Duration.zero,
+      builder: (context, snapshot) {
+        final durationMs = duration.inMilliseconds;
+        final positionMs = (snapshot.data ?? Duration.zero).inMilliseconds;
+        final value = durationMs <= 0
+            ? 0.0
+            : (positionMs / durationMs).clamp(0.0, 1.0).toDouble();
+        return ExcludeSemantics(
+          child: SizedBox(
+            height: 2,
+            child: LinearProgressIndicator(
+              key: const Key('player-mini-progress'),
+              value: value,
+              color: colors.playbackActive,
+              backgroundColor: colors.outline,
             ),
           ),
         );

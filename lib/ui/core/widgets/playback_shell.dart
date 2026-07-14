@@ -94,6 +94,8 @@ class _PlaybackShellState extends State<PlaybackShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('playback-shell-scaffold'),
+      extendBody: false,
       body: widget.child,
       bottomNavigationBar: PlayerMiniBar(
         viewModel: _miniPlayerViewModel,
