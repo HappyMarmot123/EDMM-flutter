@@ -180,6 +180,38 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('catalog header shows Lucas before the architecture link', (
+    tester,
+  ) async {
+    final vm = _vm((category, query) => Ok(<Track>[_t('1')]));
+
+    await _pumpCatalog(tester, vm, viewport: EdmmTestViewports.compactPhone);
+    await tester.pumpAndSettle();
+
+    const ownerKey = Key('catalog-header-owner');
+    const githubKey = Key('catalog-header-github');
+    final owner = find.byKey(ownerKey);
+    final githubButton = find.byKey(githubKey);
+    final architectureIcon = find.descendant(
+      of: githubButton,
+      matching: find.byIcon(Icons.architecture),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Lucas'), findsOneWidget);
+    expect(owner, findsOneWidget);
+    expect(githubButton, findsOneWidget);
+    expect(architectureIcon, findsOneWidget);
+    expect(
+      tester.getCenter(owner).dx,
+      lessThan(tester.getCenter(githubButton).dx),
+    );
+    expect(
+      tester.getSize(githubButton).height,
+      greaterThanOrEqualTo(EdmmSizes.minTouchTarget),
+    );
+  });
+
   testWidgets('catalog shows a count only on the selected compact filter', (
     tester,
   ) async {

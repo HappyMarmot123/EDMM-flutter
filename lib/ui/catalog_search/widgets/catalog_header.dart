@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/themes/edmm_theme_extensions.dart';
 import '../../core/themes/edmm_theme_tokens.dart';
@@ -48,6 +49,7 @@ class CatalogHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).edmm;
+    const githubUrl = 'https://github.com/happyMarmot123/';
 
     return Padding(
       padding: const EdgeInsets.only(
@@ -72,6 +74,35 @@ class CatalogHeader extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
+              Text(
+                'Lucas',
+                key: const Key('catalog-header-owner'),
+                maxLines: 1,
+                style: EdmmTypography.utilityLabel.copyWith(
+                  color: colors.textMuted,
+                ),
+              ),
+              const SizedBox(width: EdmmSpacing.xxs),
+              IconButton(
+                key: const Key('catalog-header-github'),
+                tooltip: 'GitHub',
+                icon: const Icon(Icons.architecture),
+                onPressed: () async {
+                  final githubUri = Uri.parse(githubUrl);
+                  final launched = await launchUrl(
+                    githubUri,
+                    mode: LaunchMode.externalApplication,
+                  );
+                  if (!launched) {
+                    await launchUrl(
+                      githubUri,
+                      mode: LaunchMode.platformDefault,
+                    );
+                  }
+                },
+                color: colors.textPrimary,
+                iconSize: 24,
               ),
             ],
           ),
